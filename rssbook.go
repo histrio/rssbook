@@ -3,6 +3,12 @@ package main
 import (
 	"encoding/xml"
 	"fmt"
+	"io/ioutil"
+	"os"
+	"os/exec"
+	"path"
+	"path/filepath"
+	//"strings"
 	"time"
 )
 
@@ -11,7 +17,7 @@ type Link struct {
 	Rel    string `xml:"rel,attr"`
 	Type   string `xml:"type,attr,omitempty"`
 	Title  string `xml:"title,attr,omitempty"`
-	Length int    `xml:"length,attr"`
+	Length int    `xml:"length,attr,omitempty"`
 }
 
 type Entry struct {
@@ -46,7 +52,7 @@ func getid(domain string, link string, date time.Time) string {
 	return fmt.Sprintf("tag:%v,%v:%v", domain, date_formatted, link)
 }
 
-func main() {
+func generate() {
 
 	entry := Entry{
 		Title:   "Episode1",
@@ -85,9 +91,47 @@ func main() {
 
 	out, err := xml.MarshalIndent(rss, "", "  ")
 
-	if err != nil {
-		panic(err)
-	}
+	check(err)
 
 	fmt.Println(string(out))
+	//ffmpeg -i out.mp3 -acodec copy -t 00:10:00 -ss 00:05:00 half_hour_split2.mp3
+}
+
+func check(e error) {
+	if e != nil {
+		panic(e)
+	}
+}
+
+func main() {
+
+	argsCount := len(os.Args[1:])
+	if argsCount != 1 {
+		panic("Wrong params")
+	}
+
+	dir := os.Args[1]
+	files, err := ioutil.ReadDir(dir)
+
+	check(err)
+
+	//filelist := []string{}
+
+	file, err := os.Create("/tmp/dat2")
+	check(err)
+
+	for _, f := range files {
+		fname := f.Name()
+		ext := filepath.Ext(fname)
+		if ext == ".mp3" {
+			file.WriteString(fmt.Sprintf("file '%v'\n", path.Join(dir, fname)))
+			//filelist = append(filelist, "'"+f.Name()+"'")
+		}
+	}
+	file.Close()
+
+	out, err := exec.Command("ffmpeg", "-f", "concat", "-safe", "0", "-i", "/tmp/dat2", "-c", "copy", "out.mp3").Output()
+	check(err)
+
+	fmt.Println(out)
 }
