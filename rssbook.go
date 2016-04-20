@@ -4,6 +4,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/exec"
 	"path"
@@ -94,7 +95,6 @@ func generate() {
 	check(err)
 
 	fmt.Println(string(out))
-	//ffmpeg -i out.mp3 -acodec copy -t 00:10:00 -ss 00:05:00 half_hour_split2.mp3
 }
 
 func check(e error) {
@@ -103,7 +103,21 @@ func check(e error) {
 	}
 }
 
+func simple_exec(name string, arg ...string) {
+	cmd := exec.Command(name, arg...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Println(fmt.Sprint(err) + ": " + string(output))
+		return
+		//} else {
+		//fmt.Println(string(output))
+	}
+}
+
 func main() {
+	Info := log.New(os.Stdout,
+		"INFO: ",
+		log.Ldate|log.Ltime|log.Lshortfile)
 
 	argsCount := len(os.Args[1:])
 	if argsCount != 1 {
@@ -115,23 +129,34 @@ func main() {
 
 	check(err)
 
-	//filelist := []string{}
-
-	file, err := os.Create("/tmp/dat2")
+	list_file, err := ioutil.TempFile(os.TempDir(), "prefix")
 	check(err)
 
 	for _, f := range files {
 		fname := f.Name()
 		ext := filepath.Ext(fname)
 		if ext == ".mp3" {
-			file.WriteString(fmt.Sprintf("file '%v'\n", path.Join(dir, fname)))
-			//filelist = append(filelist, "'"+f.Name()+"'")
+			list_file.WriteString(fmt.Sprintf("file '%v'\n", path.Join(dir, fname)))
 		}
 	}
-	file.Close()
+	list_file.Close()
 
-	out, err := exec.Command("ffmpeg", "-f", "concat", "-safe", "0", "-i", "/tmp/dat2", "-c", "copy", "out.mp3").Output()
-	check(err)
+	merged_file, err := ioutil.TempFile(os.TempDir(), "prefix")
+	merged_filename := merged_file.Name() + ".mp3"
 
-	fmt.Println(out)
+	Info.Println("Merging")
+	simple_exec("ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", list_file.Name(), "-c", "copy", merged_filename)
+
+	splited_file, err := ioutil.TempFile(os.TempDir(), "prefix")
+	splited_filename := splited_file.Name() + ".mp3"
+
+	Info.Println("Spliting")
+	simple_exec("ffmpeg", "-y", "-i", merged_filename, "-acodec", "copy", "-t", "00:10:00", "-ss", "00:05:00", splited_filename)
+
+	Info.Println("Compressing")
+	simple_exec("lame", "-V", "9", "--vbr-new", "-mm", "-h", "-q", "0", "-f", splited_filename)
+
+	os.Remove(list_file.Name())
+	os.Remove(merged_filename)
+	os.Remove(splited_filename)
 }
