@@ -9,7 +9,8 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
-	//"strings"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -53,27 +54,32 @@ func getid(domain string, link string, date time.Time) string {
 	return fmt.Sprintf("tag:%v,%v:%v", domain, date_formatted, link)
 }
 
-func generate() {
+func generate(episodes []string) string {
 
-	entry := Entry{
-		Title:   "Episode1",
-		Id:      getid("books.falseprotagonist.me", "/readyplayerone", time.Now()),
-		Updated: time.Now(),
-		LinkList: []Link{
-			Link{Href: "https://falseprotagonist.me", Rel: "alternate"},
-			Link{
-				Href:   "https://falseprotagonist.me/test.mp3",
-				Rel:    "alternate",
-				Type:   "audio/mpeg",
-				Title:  "MP3",
-				Length: 1234,
+	entries := []Entry{}
+
+	for _, ep := range episodes {
+		entry := Entry{
+			Title:   "Episode1",
+			Id:      getid("books.falseprotagonist.me", "/readyplayerone", time.Now()),
+			Updated: time.Now(),
+			LinkList: []Link{
+				Link{Href: "https://falseprotagonist.me", Rel: "alternate"},
+				Link{
+					Href:   "https://falseprotagonist.me/" + ep,
+					Rel:    "alternate",
+					Type:   "audio/mpeg",
+					Title:  "MP3",
+					Length: 1234,
+				},
 			},
-		},
-		Author: Author{
-			Name:  "Robert Harrison",
-			Email: "rh@rh.rh",
-		},
-		Content: "test",
+			Author: Author{
+				Name:  "Robert Harrison",
+				Email: "rh@rh.rh",
+			},
+			Content: "test",
+		}
+		entries = append(entries, entry)
 	}
 
 	rss := &Atom1{
@@ -85,16 +91,14 @@ func generate() {
 		},
 		Updated:   time.Now(),
 		Generator: "rssbook/0.1(+https://github.com/histrio/rssbook)",
-		EntryList: []Entry{
-			entry,
-		},
+		EntryList: entries,
 	}
 
 	out, err := xml.MarshalIndent(rss, "", "  ")
 
 	check(err)
 
-	fmt.Println(string(out))
+	return string(out)
 }
 
 func check(e error) {
@@ -103,28 +107,27 @@ func check(e error) {
 	}
 }
 
-func simple_exec(name string, arg ...string) {
+func simple_exec(name string, arg ...string) string {
 	cmd := exec.Command(name, arg...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		fmt.Println(fmt.Sprint(err) + ": " + string(output))
-		return
-		//} else {
-		//fmt.Println(string(output))
+		return "Error"
+	} else {
+		return string(output)
 	}
 }
 
-func main() {
+func format_time(t time.Time) string {
+	return fmt.Sprintf("%02d:%02d:%02d", t.Hour(), t.Minute(), t.Second())
+}
+
+func cook_audio(dir string) []string {
+
 	Info := log.New(os.Stdout,
 		"INFO: ",
 		log.Ldate|log.Ltime|log.Lshortfile)
 
-	argsCount := len(os.Args[1:])
-	if argsCount != 1 {
-		panic("Wrong params")
-	}
-
-	dir := os.Args[1]
 	files, err := ioutil.ReadDir(dir)
 
 	check(err)
@@ -146,17 +149,57 @@ func main() {
 
 	Info.Println("Merging")
 	simple_exec("ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", list_file.Name(), "-c", "copy", merged_filename)
+	duration_raw := simple_exec("ffprobe", "-i", merged_filename, "-show_entries", "format=duration", "-v", "quiet", "-of", "csv")
+	duration := strings.Split(duration_raw, ",")[1]
 
-	splited_file, err := ioutil.TempFile(os.TempDir(), "prefix")
-	splited_filename := splited_file.Name() + ".mp3"
+	Info.Println(duration)
 
+	duration_s := strings.Split(duration, ".")
+	seconds, err := strconv.ParseInt(duration_s[0], 10, 64)
+	nseconds, err := strconv.ParseInt(duration_s[1], 10, 64)
+
+	t0 := time.Time{}
+	t0 = t0.Add(time.Second * time.Duration(seconds))
+	t0 = t0.Add(time.Nanosecond * time.Duration(nseconds))
+
+	Info.Println("Merged to " + format_time(t0))
+
+	t1 := time.Time{}
 	Info.Println("Spliting")
-	simple_exec("ffmpeg", "-y", "-i", merged_filename, "-acodec", "copy", "-t", "00:10:00", "-ss", "00:05:00", splited_filename)
 
-	Info.Println("Compressing")
-	simple_exec("lame", "-V", "9", "--vbr-new", "-mm", "-h", "-q", "0", "-f", splited_filename)
+	data := []string{}
+	for t1.Before(t0) {
+		s1 := t1
+		t1 = t1.Add(time.Minute * 5)
+
+		t1s := format_time(t1)
+		s1s := format_time(s1)
+		Info.Println("Split " + s1s + " - " + t1s)
+
+		splited_file, err := ioutil.TempFile(os.TempDir(), "prefix")
+		check(err)
+
+		splited_filename := splited_file.Name() + ".mp3"
+		simple_exec("ffmpeg", "-y", "-i", merged_filename, "-acodec", "copy", "-t", t1s, "-ss", s1s, splited_filename)
+		simple_exec("lame", "-V", "9", "--vbr-new", "-mm", "-h", "-q", "0", "-f", splited_filename)
+		os.Remove(splited_filename)
+		data = append(data, splited_filename+".mp3")
+	}
 
 	os.Remove(list_file.Name())
 	os.Remove(merged_filename)
-	os.Remove(splited_filename)
+
+	return data
+}
+
+func main() {
+	argsCount := len(os.Args[1:])
+	if argsCount != 1 {
+		panic("Wrong params")
+	}
+
+	dir := os.Args[1]
+	episodes := cook_audio(dir)
+	output := generate(episodes)
+	fmt.Println(output)
 }
