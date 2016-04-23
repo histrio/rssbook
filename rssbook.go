@@ -49,6 +49,13 @@ type Atom1 struct {
 	EntryList []Entry `xml:"entry"`
 }
 
+const siteUrl string = "https://books.falseprotagonist.me/"
+const s3Url string = "https://s3-eu-west-1.amazonaws.com/"
+const s3Bucket string = "falseprotagonist-one"
+const bookId string = "readyplayerone"
+const bookAuthor string = "Robert Harryson"
+const bookAnnotation string = ""
+
 func getid(domain string, link string, date time.Time) string {
 	date_formatted := fmt.Sprintf("%d-%02d-%02d", date.Year(), date.Month(), date.Day())
 	return fmt.Sprintf("tag:%v,%v:%v", domain, date_formatted, link)
@@ -58,15 +65,15 @@ func generate(episodes []string) string {
 
 	entries := []Entry{}
 
-	for _, ep := range episodes {
+	for n, ep := range episodes {
 		entry := Entry{
-			Title:   "Episode1",
+			Title:   fmt.Sprintf("Episode%d", n),
 			Id:      getid("books.falseprotagonist.me", "/readyplayerone", time.Now()),
 			Updated: time.Now(),
 			LinkList: []Link{
-				Link{Href: "https://falseprotagonist.me", Rel: "alternate"},
+				Link{Href: siteUrl + bookId, Rel: "alternate"},
 				Link{
-					Href:   "https://falseprotagonist.me/" + ep,
+					Href:   s3Url + s3Bucket + bookId + ep,
 					Rel:    "alternate",
 					Type:   "audio/mpeg",
 					Title:  "MP3",
@@ -74,20 +81,20 @@ func generate(episodes []string) string {
 				},
 			},
 			Author: Author{
-				Name:  "Robert Harrison",
+				Name:  bookAuthor,
 				Email: "rh@rh.rh",
 			},
-			Content: "test",
+			Content: bookAnnotation,
 		}
 		entries = append(entries, entry)
 	}
 
 	rss := &Atom1{
 		Title:    "Ready Player One (Book)",
-		Id:       getid("books.falseprotagonist.me", "/readyplayerone", time.Now()),
+		Id:       getid("books.falseprotagonist.me", bookId, time.Now()),
 		Subtitle: "Audiobook as a podcast",
 		LinkList: []Link{
-			Link{Href: "https://falseprotagonist.me", Rel: "self"},
+			Link{Href: siteUrl, Rel: "self"},
 		},
 		Updated:   time.Now(),
 		Generator: "rssbook/0.1(+https://github.com/histrio/rssbook)",
@@ -152,8 +159,6 @@ func cook_audio(dir string) []string {
 	duration_raw := simple_exec("ffprobe", "-i", merged_filename, "-show_entries", "format=duration", "-v", "quiet", "-of", "csv")
 	duration := strings.Split(duration_raw, ",")[1]
 
-	Info.Println(duration)
-
 	duration_s := strings.Split(duration, ".")
 	seconds, err := strconv.ParseInt(duration_s[0], 10, 64)
 	nseconds, err := strconv.ParseInt(duration_s[1], 10, 64)
@@ -164,11 +169,18 @@ func cook_audio(dir string) []string {
 
 	Info.Println("Merged to " + format_time(t0))
 
+	pwd, err := os.Getwd()
+
+	dest := path.Join(pwd, bookId)
+	os.Mkdir(dest, 0777)
+
 	t1 := time.Time{}
 	Info.Println("Spliting")
 
 	data := []string{}
 	for t1.Before(t0) {
+		fname := fmt.Sprintf("%v%d.mp3", bookId, t1.Unix())
+		fpath := path.Join(dest, fname)
 		s1 := t1
 		t1 = t1.Add(time.Minute * 5)
 
@@ -176,14 +188,14 @@ func cook_audio(dir string) []string {
 		s1s := format_time(s1)
 		Info.Println("Split " + s1s + " - " + t1s)
 
-		splited_file, err := ioutil.TempFile(os.TempDir(), "prefix")
+		splited_file, err := ioutil.TempFile(os.TempDir(), "rssbook-"+bookId)
 		check(err)
 
 		splited_filename := splited_file.Name() + ".mp3"
 		simple_exec("ffmpeg", "-y", "-i", merged_filename, "-acodec", "copy", "-t", t1s, "-ss", s1s, splited_filename)
-		simple_exec("lame", "-V", "9", "--vbr-new", "-mm", "-h", "-q", "0", "-f", splited_filename)
+		simple_exec("lame", "-V", "9", "--vbr-new", "-mm", "-h", "-q", "0", "-f", splited_filename, fpath)
 		os.Remove(splited_filename)
-		data = append(data, splited_filename+".mp3")
+		data = append(data, fpath)
 	}
 
 	os.Remove(list_file.Name())
