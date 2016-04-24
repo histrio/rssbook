@@ -177,25 +177,27 @@ func cook_audio(dir string) []string {
 	t1 := time.Time{}
 	Info.Println("Spliting")
 
+	s1 := t1.Add(time.Minute * 5)
+
 	data := []string{}
 	for t1.Before(t0) {
-		fname := fmt.Sprintf("%v%d.mp3", bookId, t1.Unix())
+		fname := fmt.Sprintf("%v%02d%02d%02d.mp3", bookId, t1.Hour(), t1.Minute(), t1.Second())
 		fpath := path.Join(dest, fname)
-		s1 := t1
-		t1 = t1.Add(time.Minute * 5)
 
 		t1s := format_time(t1)
 		s1s := format_time(s1)
-		Info.Println("Split " + s1s + " - " + t1s)
+		Info.Println("Split " + t1s)
 
 		splited_file, err := ioutil.TempFile(os.TempDir(), "rssbook-"+bookId)
 		check(err)
 
 		splited_filename := splited_file.Name() + ".mp3"
-		simple_exec("ffmpeg", "-y", "-i", merged_filename, "-acodec", "copy", "-t", t1s, "-ss", s1s, splited_filename)
+		simple_exec("ffmpeg", "-y", "-i", merged_filename, "-acodec", "copy", "-t", s1s, "-ss", t1s, splited_filename)
 		simple_exec("lame", "-V", "9", "--vbr-new", "-mm", "-h", "-q", "0", "-f", splited_filename, fpath)
 		os.Remove(splited_filename)
 		data = append(data, fpath)
+
+		t1 = t1.Add(time.Minute * 5)
 	}
 
 	os.Remove(list_file.Name())
@@ -213,5 +215,11 @@ func main() {
 	dir := os.Args[1]
 	episodes := cook_audio(dir)
 	output := generate(episodes)
-	fmt.Println(output)
+
+	pwd, err := os.Getwd()
+	check(err)
+	dest := path.Join(pwd, bookId+".xml")
+
+	f, err := os.Create(dest)
+	f.WriteString(string(output))
 }
