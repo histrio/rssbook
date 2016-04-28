@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/xml"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -19,7 +20,7 @@ type Link struct {
 	Rel    string `xml:"rel,attr"`
 	Type   string `xml:"type,attr,omitempty"`
 	Title  string `xml:"title,attr,omitempty"`
-	Length int    `xml:"length,attr,omitempty"`
+	Length int64  `xml:"length,attr,omitempty"`
 }
 
 type Entry struct {
@@ -50,7 +51,7 @@ type Atom1 struct {
 }
 
 const siteUrl string = "https://books.falseprotagonist.me/"
-const s3Url string = "https://s3-eu-west-1.amazonaws.com/"
+const s3Url string = "https://s3-eu-west-1.amazonaws.com"
 const s3Bucket string = "falseprotagonist-one"
 const bookId string = "readyplayerone"
 const bookAuthor string = "Robert Harryson"
@@ -61,23 +62,36 @@ func getid(domain string, link string, date time.Time) string {
 	return fmt.Sprintf("tag:%v,%v:%v", domain, date_formatted, link)
 }
 
+func getFileSize(fn string) int64 {
+	file, err := os.Open(fn)
+	check(err)
+	fi, err := file.Stat()
+	check(err)
+	return fi.Size()
+}
+
 func generate(episodes []string) string {
 
 	entries := []Entry{}
 
 	for n, ep := range episodes {
+		_, ep_filename := filepath.Split(ep)
+		ep_name := fmt.Sprintf("Episode%d", n)
+		ep_size := getFileSize(ep)
+
+		href := strings.Join([]string{s3Url, s3Bucket, bookId, ep_filename}, "/")
 		entry := Entry{
-			Title:   fmt.Sprintf("Episode%d", n),
+			Title:   ep_name,
 			Id:      getid("books.falseprotagonist.me", "/readyplayerone", time.Now()),
 			Updated: time.Now(),
 			LinkList: []Link{
 				Link{Href: siteUrl + bookId, Rel: "alternate"},
 				Link{
-					Href:   s3Url + s3Bucket + bookId + ep,
+					Href:   href,
 					Rel:    "alternate",
 					Type:   "audio/mpeg",
-					Title:  "MP3",
-					Length: 1234,
+					Title:  ep_name,
+					Length: ep_size,
 				},
 			},
 			Author: Author{
@@ -129,7 +143,7 @@ func format_time(t time.Time) string {
 	return fmt.Sprintf("%02d:%02d:%02d", t.Hour(), t.Minute(), t.Second())
 }
 
-func cook_audio(dir string) []string {
+func cook_audio(dir string, dest string) []string {
 
 	Info := log.New(os.Stdout,
 		"INFO: ",
@@ -169,9 +183,7 @@ func cook_audio(dir string) []string {
 
 	Info.Println("Merged to " + format_time(t0))
 
-	pwd, err := os.Getwd()
-
-	dest := path.Join(pwd, bookId)
+	dest = path.Join(dest, bookId)
 	os.Mkdir(dest, 0777)
 
 	t1 := time.Time{}
@@ -207,19 +219,28 @@ func cook_audio(dir string) []string {
 }
 
 func main() {
-	argsCount := len(os.Args[1:])
-	if argsCount != 1 {
-		panic("Wrong params")
-	}
-
-	dir := os.Args[1]
-	episodes := cook_audio(dir)
-	output := generate(episodes)
+	var dest string
+	flag.StringVar(&dest, "dest", "", "Generated files destination")
+	flag.Parse()
 
 	pwd, err := os.Getwd()
 	check(err)
-	dest := path.Join(pwd, bookId+".xml")
 
-	f, err := os.Create(dest)
+	if dest == "" {
+		dest = pwd
+	}
+
+	if len(flag.Args()) == 0 {
+		flag.Usage()
+		os.Exit(1)
+	}
+
+	dir := flag.Args()[0]
+	episodes := cook_audio(dir, dest)
+	output := generate(episodes)
+
+	xml_dest := path.Join(dest, bookId+".xml")
+
+	f, err := os.Create(xml_dest)
 	f.WriteString(string(output))
 }
