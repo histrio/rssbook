@@ -55,7 +55,6 @@ const s3Url string = "https://s3-eu-west-1.amazonaws.com"
 const s3Bucket string = "falseprotagonist-one"
 const bookId string = "readyplayerone"
 const bookAuthor string = "Robert Harryson"
-const bookAnnotation string = ""
 
 func getid(domain string, link string, date time.Time) string {
 	date_formatted := fmt.Sprintf("%d-%02d-%02d", date.Year(), date.Month(), date.Day())
@@ -74,16 +73,19 @@ func generate(episodes []string) string {
 
 	entries := []Entry{}
 
+	t0 := time.Now()
+
 	for n, ep := range episodes {
 		_, ep_filename := filepath.Split(ep)
 		ep_name := fmt.Sprintf("Episode%d", n)
 		ep_size := getFileSize(ep)
 
+		content := fmt.Sprintf("Episode %d for %s", n, bookId)
 		href := strings.Join([]string{s3Url, s3Bucket, bookId, ep_filename}, "/")
 		entry := Entry{
 			Title:   ep_name,
-			Id:      getid("books.falseprotagonist.me", "/readyplayerone", time.Now()),
-			Updated: time.Now(),
+			Id:      getid("books.falseprotagonist.me", fmt.Sprintf("%s%d", bookId, n), t0),
+			Updated: t0.Add(time.Second * time.Duration(n)),
 			LinkList: []Link{
 				Link{Href: siteUrl + bookId, Rel: "alternate"},
 				Link{
@@ -98,19 +100,20 @@ func generate(episodes []string) string {
 				Name:  bookAuthor,
 				Email: "rh@rh.rh",
 			},
-			Content: bookAnnotation,
+			Content: content,
 		}
 		entries = append(entries, entry)
 	}
 
+	selfLink := strings.Join([]string{s3Url, s3Bucket, bookId + ".xml"}, "/")
 	rss := &Atom1{
 		Title:    "Ready Player One (Book)",
-		Id:       getid("books.falseprotagonist.me", bookId, time.Now()),
+		Id:       getid("books.falseprotagonist.me", bookId, t0),
 		Subtitle: "Audiobook as a podcast",
 		LinkList: []Link{
-			Link{Href: siteUrl, Rel: "self"},
+			Link{Href: selfLink, Rel: "self"},
 		},
-		Updated:   time.Now(),
+		Updated:   t0,
 		Generator: "rssbook/0.1(+https://github.com/histrio/rssbook)",
 		EntryList: entries,
 	}
