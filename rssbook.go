@@ -110,7 +110,6 @@ func generate(episodes chan string) string {
 
 	n := 0
 	for ep := range episodes {
-		Info.Println(ep)
 		n = n + 1
 		_, ep_filename := filepath.Split(ep)
 		ep_name := fmt.Sprintf("Episode%d", n)
@@ -276,7 +275,6 @@ type Task struct {
 var terminatorTask = Task{}
 
 func split(source string, dest string, skip time.Time, limit time.Time) string {
-	Info.Println(source)
 	fname := fmt.Sprintf("%v%02d%02d%02d.mp3", bookId, skip.Hour(), skip.Minute(), skip.Second())
 	fpath := path.Join(dest, fname)
 
