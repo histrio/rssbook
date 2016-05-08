@@ -4,16 +4,49 @@ import (
 	"encoding/xml"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
+
+var (
+	Trace   *log.Logger
+	Info    *log.Logger
+	Warning *log.Logger
+	Error   *log.Logger
+)
+
+func Init(
+	traceHandle io.Writer,
+	infoHandle io.Writer,
+	warningHandle io.Writer,
+	errorHandle io.Writer) {
+
+	Trace = log.New(traceHandle,
+		"TRACE: ",
+		log.Ldate|log.Ltime|log.Lshortfile)
+
+	Info = log.New(infoHandle,
+		"INFO: ",
+		log.Ldate|log.Ltime|log.Lshortfile)
+
+	Warning = log.New(warningHandle,
+		"WARNING: ",
+		log.Ldate|log.Ltime|log.Lshortfile)
+
+	Error = log.New(errorHandle,
+		"ERROR: ",
+		log.Ldate|log.Ltime|log.Lshortfile)
+}
 
 type Link struct {
 	Href   string `xml:"href,attr"`
@@ -145,9 +178,9 @@ func format_time(t time.Time) string {
 
 func cook_audio(dir string, dest string) []string {
 
-	Info := log.New(os.Stdout,
-		"INFO: ",
-		log.Ldate|log.Ltime|log.Lshortfile)
+	//Info := log.New(os.Stdout,
+	//"INFO: ",
+	//log.Ldate|log.Ltime|log.Lshortfile)
 
 	files, err := ioutil.ReadDir(dir)
 
@@ -191,34 +224,80 @@ func cook_audio(dir string, dest string) []string {
 
 	s1 := t1.Add(time.Minute * 5)
 
-	data := []string{}
+	result := []string{}
+
+	runtime.GOMAXPROCS(runtime.NumCPU())
+	jobs := runtime.NumCPU() * 2
+
+	var wg sync.WaitGroup
+	wg.Add(jobs)
+
+	tasks := make(chan Task, jobs)
+	data := make(chan string)
+
+	for i := 0; i < jobs; i++ {
+		go runner(tasks, data, wg)
+	}
+
 	for t1.Before(t0) {
-		fname := fmt.Sprintf("%v%02d%02d%02d.mp3", bookId, t1.Hour(), t1.Minute(), t1.Second())
-		fpath := path.Join(dest, fname)
-
-		t1s := format_time(t1)
-		s1s := format_time(s1)
-		Info.Println("Split " + t1s)
-
-		splited_file, err := ioutil.TempFile(os.TempDir(), "rssbook-"+bookId)
-		check(err)
-
-		splited_filename := splited_file.Name() + ".mp3"
-		simple_exec("ffmpeg", "-y", "-i", merged_filename, "-acodec", "copy", "-t", s1s, "-ss", t1s, splited_filename)
-		simple_exec("lame", "-V", "9", "--vbr-new", "-mm", "-h", "-q", "0", "-f", splited_filename, fpath)
-		os.Remove(splited_filename)
-		data = append(data, fpath)
-
+		task := Task{
+			source: merged_filename,
+			dest:   dest,
+			skip:   t1,
+			limit:  s1,
+		}
+		tasks <- task
 		t1 = t1.Add(time.Minute * 5)
 	}
 
+	go func(result []string) {
+		for rec := range data {
+			result = append(result, rec)
+		}
+	}(result)
+
+	wg.Wait()
 	os.Remove(list_file.Name())
 	os.Remove(merged_filename)
 
-	return data
+	return result
+}
+
+type Task struct {
+	source string
+	dest   string
+	skip   time.Time
+	limit  time.Time
+}
+
+func split(source string, dest string, skip time.Time, limit time.Time) string {
+	fname := fmt.Sprintf("%v%02d%02d%02d.mp3", bookId, skip.Hour(), skip.Minute(), skip.Second())
+	fpath := path.Join(dest, fname)
+
+	t1s := format_time(skip)
+	s1s := format_time(limit)
+	Info.Println("Split " + t1s)
+
+	splited_file, err := ioutil.TempFile(os.TempDir(), "rssbook-"+bookId)
+	check(err)
+
+	splited_filename := splited_file.Name() + ".mp3"
+	simple_exec("ffmpeg", "-y", "-i", source, "-acodec", "copy", "-t", s1s, "-ss", t1s, splited_filename)
+	simple_exec("lame", "-V", "9", "--vbr-new", "-mm", "-h", "-q", "0", "-f", splited_filename, fpath)
+	os.Remove(splited_filename)
+	return fpath
+}
+
+func runner(tasks chan Task, data chan string, wg sync.WaitGroup) {
+	for {
+		defer wg.Done()
+		task := <-tasks
+		data <- split(task.source, task.dest, task.skip, task.limit)
+	}
 }
 
 func main() {
+	Init(ioutil.Discard, os.Stdout, os.Stdout, os.Stderr)
 	var dest string
 	flag.StringVar(&dest, "dest", "", "Generated files destination")
 	flag.Parse()
