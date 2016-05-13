@@ -46,9 +46,29 @@ blockquote {padding: 16px; background: #eee;}
 
 }
 
-.nav li .user li {
+body {
+	margin-left: 30px;
+	margin-right: 30px;
+	margin-top: 20px;
+	margin-bottom: 50px;
+	padding: 0;
+}
+
+.nav li {
   display: inline-block;
   margin-right: 4px;
+}
+
+h1 {
+    display: block;
+    font-size: 2em;
+    font-weight: bold;
+}
+
+.auth {
+position:absolute;
+top:5px;
+right:40px;
 }
 
 /*.user li {*/

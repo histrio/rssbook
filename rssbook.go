@@ -48,6 +48,15 @@ func Init(
 		log.Ldate|log.Ltime|log.Lshortfile)
 }
 
+type Task struct {
+	source string
+	dest   string
+	skip   time.Time
+	limit  time.Time
+}
+
+var terminatorTask = Task{}
+
 type Link struct {
 	Href   string `xml:"href,attr"`
 	Rel    string `xml:"rel,attr"`
@@ -102,7 +111,8 @@ func getFileSize(fn string) int64 {
 	return fi.Size()
 }
 
-func generate(episodes chan string) string {
+func generate(episodes chan string, result chan string, wg *sync.WaitGroup) {
+	defer wg.Done()
 
 	entries := []Entry{}
 
@@ -157,7 +167,7 @@ func generate(episodes chan string) string {
 
 	check(err)
 
-	return string(out)
+	result <- string(out)
 }
 
 func check(e error) {
@@ -181,7 +191,7 @@ func format_time(t time.Time) string {
 	return fmt.Sprintf("%02d:%02d:%02d", t.Hour(), t.Minute(), t.Second())
 }
 
-func cook_audio(dir string, dest string) []string {
+func cook_audio(dir string, dest string) string {
 
 	files, err := ioutil.ReadDir(dir)
 	check(err)
@@ -224,13 +234,12 @@ func cook_audio(dir string, dest string) []string {
 
 	s1 := t1.Add(time.Minute * 5)
 
-	result := []string{}
-
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	jobs := runtime.NumCPU() * 2
 
 	tasks := make(chan Task, jobs)
 	data := make(chan string)
+	result := make(chan string, 1)
 
 	var wg sync.WaitGroup
 
@@ -239,7 +248,9 @@ func cook_audio(dir string, dest string) []string {
 		go runner(tasks, data, &wg)
 	}
 
-	go generate(data)
+	var wg2 sync.WaitGroup
+	wg2.Add(1)
+	go generate(data, result, &wg2)
 
 	for t1.Before(t0) {
 		task := Task{
@@ -255,24 +266,18 @@ func cook_audio(dir string, dest string) []string {
 	for i := 0; i < jobs; i++ {
 		tasks <- terminatorTask
 	}
-
 	close(tasks)
-
 	wg.Wait()
+
+	close(data)
+	wg2.Wait()
+
 	os.Remove(list_file.Name())
 	os.Remove(merged_filename)
 
-	return result
+	xml_out := <-result
+	return xml_out
 }
-
-type Task struct {
-	source string
-	dest   string
-	skip   time.Time
-	limit  time.Time
-}
-
-var terminatorTask = Task{}
 
 func split(source string, dest string, skip time.Time, limit time.Time) string {
 	fname := fmt.Sprintf("%v%02d%02d%02d.mp3", bookId, skip.Hour(), skip.Minute(), skip.Second())
@@ -289,6 +294,7 @@ func split(source string, dest string, skip time.Time, limit time.Time) string {
 	simple_exec("ffmpeg", "-y", "-i", source, "-acodec", "copy", "-t", s1s, "-ss", t1s, splited_filename)
 	simple_exec("lame", "-V", "9", "--vbr-new", "-mm", "-h", "-q", "0", "-f", splited_filename, fpath)
 	os.Remove(splited_filename)
+	Info.Println("Split ended" + t1s)
 	return fpath
 }
 
@@ -322,11 +328,10 @@ func main() {
 	}
 
 	dir := flag.Args()[0]
-	cook_audio(dir, dest)
-	//output := generate(episodes)
+	output := cook_audio(dir, dest)
 
-	//xml_dest := path.Join(dest, bookId+".xml")
+	xml_dest := path.Join(dest, bookId+".xml")
 
-	//f, err := os.Create(xml_dest)
-	//f.WriteString(string(output))
+	f, err := os.Create(xml_dest)
+	f.WriteString(string(output))
 }
