@@ -12,6 +12,7 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -49,10 +50,16 @@ func Init(
 }
 
 type Task struct {
+	pos    int
 	source string
 	dest   string
 	skip   time.Time
 	limit  time.Time
+}
+
+type Episode struct {
+	file string
+	pos  int
 }
 
 var terminatorTask = Task{}
@@ -92,6 +99,12 @@ type Atom1 struct {
 	EntryList []Entry `xml:"entry"`
 }
 
+type EntrySorter []Entry
+
+func (a EntrySorter) Len() int           { return len(a) }
+func (a EntrySorter) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a EntrySorter) Less(i, j int) bool { return a[i].Id < a[j].Id }
+
 const siteUrl string = "https://books.falseprotagonist.me/"
 const s3Url string = "https://s3-eu-west-1.amazonaws.com"
 const s3Bucket string = "falseprotagonist-one"
@@ -111,19 +124,18 @@ func getFileSize(fn string) int64 {
 	return fi.Size()
 }
 
-func generate(episodes chan string, result chan string, wg *sync.WaitGroup) {
+func generate(episodes chan Episode, result chan string, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	entries := []Entry{}
 
 	t0 := time.Now()
 
-	n := 0
 	for ep := range episodes {
-		n = n + 1
-		_, ep_filename := filepath.Split(ep)
+		n := ep.pos
+		_, ep_filename := filepath.Split(ep.file)
 		ep_name := fmt.Sprintf("Episode%d", n)
-		ep_size := getFileSize(ep)
+		ep_size := getFileSize(ep.file)
 
 		content := fmt.Sprintf("Episode %d for %s", n, bookId)
 		href := strings.Join([]string{s3Url, s3Bucket, bookId, ep_filename}, "/")
@@ -149,6 +161,8 @@ func generate(episodes chan string, result chan string, wg *sync.WaitGroup) {
 		}
 		entries = append(entries, entry)
 	}
+
+	sort.Sort(EntrySorter(entries))
 
 	selfLink := strings.Join([]string{s3Url, s3Bucket, bookId + ".xml"}, "/")
 	rss := &Atom1{
@@ -238,7 +252,7 @@ func cook_audio(dir string, dest string) string {
 	jobs := runtime.NumCPU() * 2
 
 	tasks := make(chan Task, jobs)
-	data := make(chan string)
+	data := make(chan Episode)
 	result := make(chan string, 1)
 
 	var wg sync.WaitGroup
@@ -252,8 +266,11 @@ func cook_audio(dir string, dest string) string {
 	wg2.Add(1)
 	go generate(data, result, &wg2)
 
+	pos := 0
 	for t1.Before(t0) {
+		pos = pos + 1
 		task := Task{
+			pos:    pos,
 			source: merged_filename,
 			dest:   dest,
 			skip:   t1,
@@ -298,39 +315,44 @@ func split(source string, dest string, skip time.Time, limit time.Time) string {
 	return fpath
 }
 
-func runner(tasks chan Task, data chan string, wg *sync.WaitGroup) {
+func runner(tasks chan Task, data chan Episode, wg *sync.WaitGroup) {
 	defer wg.Done()
 	for {
 		task := <-tasks
 		if task == terminatorTask {
 			break
 		}
-		data <- split(task.source, task.dest, task.skip, task.limit)
+		filename := split(task.source, task.dest, task.skip, task.limit)
+		episode := Episode{
+			pos:  task.pos,
+			file: filename,
+		}
+
+		data <- episode
+
 	}
 }
 
 func main() {
 	Init(ioutil.Discard, os.Stdout, os.Stdout, os.Stderr)
-	var dest string
-	flag.StringVar(&dest, "dest", "", "Generated files destination")
+	var dst string
+	var src string
+	var name string
+	flag.StringVar(&dst, "dst", "", "Generated files destination")
+	flag.StringVar(&src, "src", "", "Source of audiofiles")
+	flag.StringVar(&name, "name", "", "Shortname")
 	flag.Parse()
 
 	pwd, err := os.Getwd()
 	check(err)
 
-	if dest == "" {
-		dest = pwd
+	if dst == "" {
+		dst = pwd
 	}
 
-	if len(flag.Args()) == 0 {
-		flag.Usage()
-		os.Exit(1)
-	}
+	output := cook_audio(src, dst)
 
-	dir := flag.Args()[0]
-	output := cook_audio(dir, dest)
-
-	xml_dest := path.Join(dest, bookId+".xml")
+	xml_dest := path.Join(dst, bookId+".xml")
 
 	f, err := os.Create(xml_dest)
 	f.WriteString(string(output))
