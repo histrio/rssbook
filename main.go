@@ -180,7 +180,7 @@ func generate(bookID string, episodes chan bookEpisode, result chan string, wg *
 
 func check(e error) {
 	if e != nil {
-		panic(e)
+		log.Fatalf("%s\n", e)
 	}
 }
 
@@ -198,8 +198,8 @@ func formatTime(t time.Time) string {
 	return fmt.Sprintf("%02d:%02d:%02d", t.Hour(), t.Minute(), t.Second())
 }
 
-func cookAudio(dir string, dest string, bookID string) string {
-
+// Collects files from folder to merge
+func getFileList(dir string) string {
 	files, err := ioutil.ReadDir(dir)
 	check(err)
 
@@ -214,31 +214,48 @@ func cookAudio(dir string, dest string, bookID string) string {
 			listFile.WriteString(fmt.Sprintf("file '%v'\n", path.Join(dir, fname)))
 		}
 	}
+	return listFile.Name()
+}
 
-	mergedFile, err := ioutil.TempFile(os.TempDir(), "prefix")
-	mergedFilename := mergedFile.Name() + ".mp3"
-
+func mergeFiles(listFileName string) string {
 	infoLog.Println("Merging")
-	simpleExec("ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", listFile.Name(), "-c", "copy", mergedFilename)
-	durationRaw := simpleExec("ffprobe", "-i", mergedFilename, "-show_entries", "format=duration", "-v", "quiet", "-of", "csv")
+	mergedFile, err := ioutil.TempFile(os.TempDir(), "prefix")
+	check(err)
+	mergedFilename := mergedFile.Name() + ".mp3"
+	simpleExec("ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", listFileName, "-c", "copy", mergedFilename)
+	return mergedFilename
+}
+
+func getDuration(filename string) time.Time {
+	durationRaw := simpleExec("ffprobe", "-i", filename, "-show_entries", "format=duration", "-v", "quiet", "-of", "csv")
 	duration := strings.Split(durationRaw, ",")[1]
-
 	durationS := strings.Split(duration, ".")
-	seconds, err := strconv.ParseInt(durationS[0], 10, 64)
-	nseconds, err := strconv.ParseInt(durationS[1], 10, 64)
-
+	seconds, err := strconv.ParseInt(strings.TrimSpace(durationS[0]), 10, 64)
+	check(err)
+	nseconds, err := strconv.ParseInt(strings.TrimSpace(durationS[1]), 10, 64)
+	check(err)
 	t0 := time.Time{}
 	t0 = t0.Add(time.Second * time.Duration(seconds))
 	t0 = t0.Add(time.Nanosecond * time.Duration(nseconds))
+	infoLog.Println("Duration: " + formatTime(t0))
+	return t0
+}
 
-	infoLog.Println("Merged to " + formatTime(t0))
+func cookAudio(dir string, dest string, bookID string) string {
 
 	dest = path.Join(dest, bookID)
-	os.Mkdir(dest, 0777)
+	err := os.Mkdir(dest, 0777)
+	check(err)
 
-	t1 := time.Time{}
+	listFileName := getFileList(dir)
+	defer os.Remove(listFileName)
+	mergedFileName := mergeFiles(listFileName)
+	defer os.Remove(mergedFileName)
+	t0 := getDuration(mergedFileName)
+
 	infoLog.Println("Spliting")
 
+	t1 := time.Time{}
 	s1 := t1.Add(time.Minute * 5)
 
 	runtime.GOMAXPROCS(runtime.NumCPU())
@@ -264,7 +281,7 @@ func cookAudio(dir string, dest string, bookID string) string {
 		pos = pos + 1
 		task := splitterTask{
 			pos:    pos,
-			source: mergedFilename,
+			source: mergedFileName,
 			dest:   dest,
 			skip:   t1,
 			limit:  s1,
@@ -282,9 +299,6 @@ func cookAudio(dir string, dest string, bookID string) string {
 	close(data)
 	wg2.Wait()
 
-	os.Remove(listFile.Name())
-	os.Remove(mergedFilename)
-
 	xmlOut := <-result
 	return xmlOut
 }
@@ -301,10 +315,9 @@ func split(source string, dest string, skip time.Time, limit time.Time) string {
 	check(err)
 
 	splitedFilename := splitedFile.Name() + ".mp3"
+	defer os.Remove(splitedFilename)
 	simpleExec("ffmpeg", "-y", "-i", source, "-acodec", "copy", "-t", s1s, "-ss", t1s, splitedFilename)
 	simpleExec("lame", "-V", "9", "--vbr-new", "-mm", "-h", "-q", "0", "-f", splitedFilename, fpath)
-	os.Remove(splitedFilename)
-	infoLog.Println("Split ended" + t1s)
 	return fpath
 }
 
@@ -320,9 +333,7 @@ func runner(bookID string, tasks chan splitterTask, data chan bookEpisode, wg *s
 			pos:  task.pos,
 			file: filename,
 		}
-
 		data <- episode
-
 	}
 }
 
@@ -336,11 +347,21 @@ func main() {
 	flag.StringVar(&bookID, "name", "", "Shortname")
 	flag.Parse()
 
+	if src == "" {
+		log.Fatalln("No source found.")
+	}
+
 	pwd, err := os.Getwd()
 	check(err)
 
+	warningLog.Println("No destination specifyed. '" + pwd + "' used")
 	if dst == "" {
 		dst = pwd
+	}
+
+	if bookID == "" {
+		bookID = filepath.Base(src)
+		warningLog.Println("No name specifyed. '" + bookID + "' used")
 	}
 
 	output := cookAudio(src, dst, bookID)
