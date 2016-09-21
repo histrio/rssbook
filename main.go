@@ -51,10 +51,16 @@ type splitterTask struct {
 	limit  time.Time
 }
 
+type bookMeta struct {
+	id  string
+	src string
+	dst string
+}
+
 type bookEpisode struct {
-	bookID string
-	file   string
-	pos    int
+	book bookMeta
+	file string
+	pos  int
 }
 
 var terminatorTask = splitterTask{}
@@ -118,27 +124,24 @@ func getFileSize(fn string) int64 {
 	return fi.Size()
 }
 
-func generate(bookID string, episodes chan bookEpisode, result chan string, wg *sync.WaitGroup) {
-	defer wg.Done()
-
+func generateXML(book bookMeta, episodes []bookEpisode) string {
+	infoLog.Println("Generating xml")
 	entries := []rssEntry{}
-
 	t0 := time.Now()
-
-	for ep := range episodes {
+	for _, ep := range episodes {
 		n := ep.pos
 		_, epFilename := filepath.Split(ep.file)
 		epName := fmt.Sprintf("Episode%d", n)
 		epSize := getFileSize(ep.file)
 
-		content := fmt.Sprintf("Episode %d for %s", n, bookID)
-		href := strings.Join([]string{s3Url, s3Bucket, bookID, epFilename}, "/")
+		content := fmt.Sprintf("Episode %d for %s", n, book.id)
+		href := strings.Join([]string{s3Url, s3Bucket, book.id, epFilename}, "/")
 		entry := rssEntry{
 			Title:   epName,
-			ID:      getid("books.falseprotagonist.me", fmt.Sprintf("%s%d", bookID, n), t0),
+			ID:      getid("books.falseprotagonist.me", fmt.Sprintf("%s%d", book.id, n), t0),
 			Updated: t0.Add(time.Second * time.Duration(n)),
 			LinkList: []rssLink{
-				rssLink{Href: siteURL + bookID, Rel: "alternate"},
+				rssLink{Href: siteURL + book.id, Rel: "alternate"},
 				rssLink{
 					Href:   href,
 					Rel:    "alternate",
@@ -158,10 +161,10 @@ func generate(bookID string, episodes chan bookEpisode, result chan string, wg *
 
 	sort.Sort(entrySorter(entries))
 
-	selfLink := strings.Join([]string{s3Url, s3Bucket, bookID + ".xml"}, "/")
+	selfLink := strings.Join([]string{s3Url, s3Bucket, book.id + ".xml"}, "/")
 	rss := &rssBody{
 		Title:    "Ready Player One (Book)",
-		ID:       getid("books.falseprotagonist.me", bookID, t0),
+		ID:       getid("books.falseprotagonist.me", book.id, t0),
 		Subtitle: "Audiobook as a podcast",
 		LinkList: []rssLink{
 			rssLink{Href: selfLink, Rel: "self"},
@@ -170,12 +173,10 @@ func generate(bookID string, episodes chan bookEpisode, result chan string, wg *
 		Generator: "rssbook/0.1(+https://github.com/histrio/rssbook)",
 		EntryList: entries,
 	}
-
 	out, err := xml.MarshalIndent(rss, "", "  ")
-
 	check(err)
 
-	result <- string(out)
+	return string(out)
 }
 
 func check(e error) {
@@ -217,6 +218,7 @@ func getFileList(dir string) string {
 	return listFile.Name()
 }
 
+// Merge all audio files listed in file into one
 func mergeFiles(listFileName string) string {
 	infoLog.Println("Merging")
 	mergedFile, err := ioutil.TempFile(os.TempDir(), "prefix")
@@ -226,6 +228,7 @@ func mergeFiles(listFileName string) string {
 	return mergedFilename
 }
 
+// Calculate duration of audio file
 func getDuration(filename string) time.Time {
 	durationRaw := simpleExec("ffprobe", "-i", filename, "-show_entries", "format=duration", "-v", "quiet", "-of", "csv")
 	duration := strings.Split(durationRaw, ",")[1]
@@ -241,19 +244,10 @@ func getDuration(filename string) time.Time {
 	return t0
 }
 
-func cookAudio(dir string, dest string, bookID string) string {
-
-	dest = path.Join(dest, bookID)
-	err := os.Mkdir(dest, 0777)
-	check(err)
-
-	listFileName := getFileList(dir)
-	defer os.Remove(listFileName)
-	mergedFileName := mergeFiles(listFileName)
-	defer os.Remove(mergedFileName)
-	t0 := getDuration(mergedFileName)
-
+func splitAsync(book bookMeta, t0 time.Time, src string) []bookEpisode {
 	infoLog.Println("Spliting")
+
+	var result []bookEpisode
 
 	t1 := time.Time{}
 	s1 := t1.Add(time.Minute * 5)
@@ -262,27 +256,29 @@ func cookAudio(dir string, dest string, bookID string) string {
 	jobs := runtime.NumCPU() * 2
 
 	tasks := make(chan splitterTask, jobs)
-	data := make(chan bookEpisode)
-	result := make(chan string, 1)
+	data := make(chan bookEpisode, 1)
 
 	var wg sync.WaitGroup
 
 	wg.Add(jobs)
 	for i := 0; i < jobs; i++ {
-		go runner(bookID, tasks, data, &wg)
+		go runner(book.id, tasks, data, &wg)
 	}
 
-	var wg2 sync.WaitGroup
-	wg2.Add(1)
-	go generate(bookID, data, result, &wg2)
+	go func() {
+		defer wg.Done()
+		for t := range data {
+			result = append(result, t)
+		}
+	}()
 
 	pos := 0
 	for t1.Before(t0) {
 		pos = pos + 1
 		task := splitterTask{
 			pos:    pos,
-			source: mergedFileName,
-			dest:   dest,
+			source: src,
+			dest:   book.dst,
 			skip:   t1,
 			limit:  s1,
 		}
@@ -294,12 +290,24 @@ func cookAudio(dir string, dest string, bookID string) string {
 		tasks <- terminatorTask
 	}
 	close(tasks)
+
 	wg.Wait()
+	return result
+}
 
-	close(data)
-	wg2.Wait()
+func generateM3U(book bookMeta, episodes []bookEpisode) string {
+	return ""
+}
 
-	xmlOut := <-result
+func cookAudio(book bookMeta) string {
+	listFileName := getFileList(book.src)
+	defer os.Remove(listFileName)
+	mergedFileName := mergeFiles(listFileName)
+	defer os.Remove(mergedFileName)
+	t0 := getDuration(mergedFileName)
+	episodes := splitAsync(book, t0, mergedFileName)
+	xmlOut := generateXML(book, episodes)
+	generateM3U(book, episodes)
 	return xmlOut
 }
 
@@ -364,10 +372,19 @@ func main() {
 		warningLog.Println("No name specifyed. '" + bookID + "' used")
 	}
 
-	output := cookAudio(src, dst, bookID)
+	dest := path.Join(dst, bookID)
+	err = os.Mkdir(dest, 0777)
+	check(err)
 
+	book := bookMeta{
+		id:  bookID,
+		src: src,
+		dst: dest,
+	}
+	output := cookAudio(book)
 	xmlDest := path.Join(dst, bookID+".xml")
-
 	f, err := os.Create(xmlDest)
+	check(err)
 	f.WriteString(string(output))
+	infoLog.Println("Done")
 }
