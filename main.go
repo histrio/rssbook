@@ -63,6 +63,20 @@ type bookEpisode struct {
 	pos  int
 }
 
+type episodesList []bookEpisode
+
+func (slice episodesList) Len() int {
+	return len(slice)
+}
+
+func (slice episodesList) Less(i, j int) bool {
+	return slice[i].pos < slice[j].pos
+}
+
+func (slice episodesList) Swap(i, j int) {
+	slice[i], slice[j] = slice[j], slice[i]
+}
+
 var terminatorTask = splitterTask{}
 
 type rssLink struct {
@@ -124,7 +138,7 @@ func getFileSize(fn string) int64 {
 	return fi.Size()
 }
 
-func generateXML(book bookMeta, episodes []bookEpisode) string {
+func generateXML(book bookMeta, episodes episodesList) string {
 	infoLog.Println("Generating xml")
 	entries := []rssEntry{}
 	t0 := time.Now()
@@ -176,7 +190,11 @@ func generateXML(book bookMeta, episodes []bookEpisode) string {
 	out, err := xml.MarshalIndent(rss, "", "  ")
 	check(err)
 
-	return string(out)
+	xmlDest := path.Join(book.dst, book.id+".xml")
+	f, err := os.Create(xmlDest)
+	check(err)
+	f.WriteString(string(out))
+	return xmlDest
 }
 
 func check(e error) {
@@ -244,10 +262,10 @@ func getDuration(filename string) time.Time {
 	return t0
 }
 
-func splitAsync(book bookMeta, t0 time.Time, src string) []bookEpisode {
+func splitAsync(book bookMeta, t0 time.Time, src string) episodesList {
 	infoLog.Println("Spliting")
 
-	var result []bookEpisode
+	var result episodesList
 
 	t1 := time.Time{}
 	s1 := t1.Add(time.Minute * 5)
@@ -295,20 +313,34 @@ func splitAsync(book bookMeta, t0 time.Time, src string) []bookEpisode {
 	return result
 }
 
-func generateM3U(book bookMeta, episodes []bookEpisode) string {
-	return ""
+func generateM3U(book bookMeta, episodes episodesList) string {
+	m3uDest := path.Join(book.dst, book.id+".m3u")
+	f, err := os.Create(m3uDest)
+	check(err)
+	f.WriteString("#EXTM3U\n\n")
+	for _, ep := range episodes {
+		path, err := filepath.Rel(book.dst, ep.file)
+		check(err)
+		f.WriteString(path + "\n")
+	}
+	return m3uDest
 }
 
-func cookAudio(book bookMeta) string {
+func cookAudio(book bookMeta) error {
 	listFileName := getFileList(book.src)
 	defer os.Remove(listFileName)
 	mergedFileName := mergeFiles(listFileName)
 	defer os.Remove(mergedFileName)
 	t0 := getDuration(mergedFileName)
 	episodes := splitAsync(book, t0, mergedFileName)
-	xmlOut := generateXML(book, episodes)
-	generateM3U(book, episodes)
-	return xmlOut
+
+	sort.Sort(episodes)
+
+	xmlPath := generateXML(book, episodes)
+	m3uPath := generateM3U(book, episodes)
+	infoLog.Println(xmlPath)
+	infoLog.Println(m3uPath)
+	return nil
 }
 
 func split(source string, dest string, skip time.Time, limit time.Time) string {
@@ -381,10 +413,7 @@ func main() {
 		src: src,
 		dst: dest,
 	}
-	output := cookAudio(book)
-	xmlDest := path.Join(dst, bookID+".xml")
-	f, err := os.Create(xmlDest)
+	err = cookAudio(book)
 	check(err)
-	f.WriteString(string(output))
 	infoLog.Println("Done")
 }
