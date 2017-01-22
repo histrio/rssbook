@@ -45,20 +45,29 @@ func formatTime(t time.Time) string {
 }
 
 // Collects files from folder to merge
-func getFileList(dir string) string {
+func getFileList(dir string) []string {
 	files, err := ioutil.ReadDir(dir)
 	check(err)
 
-	listFile, err := ioutil.TempFile(os.TempDir(), "prefix")
-	defer listFile.Close()
-	check(err)
+	var result []string
 
 	for _, f := range files {
 		fname := f.Name()
 		ext := filepath.Ext(fname)
 		if ext == ".mp3" {
-			listFile.WriteString(fmt.Sprintf("file '%v'\n", path.Join(dir, fname)))
+			result = append(result, path.Join(dir, fname))
 		}
+	}
+	return result
+}
+
+func getFileListFile(dir string) string {
+	listFile, err := ioutil.TempFile(os.TempDir(), "prefix")
+	defer listFile.Close()
+	check(err)
+
+	for _, f := range getFileList(dir) {
+		listFile.WriteString(fmt.Sprintf("file '%v'\n", f))
 	}
 	return listFile.Name()
 }

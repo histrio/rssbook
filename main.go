@@ -1,8 +1,13 @@
 package main
 
 import (
+	"strings"
+
+	"bufio"
 	"flag"
+	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"path"
@@ -150,7 +155,7 @@ func generateM3U(book bookMeta) string {
 }
 
 func cookAudio(book bookMeta) (result episodesList, err error) {
-	listFileName := getFileList(book.src)
+	listFileName := getFileListFile(book.src)
 	defer os.Remove(listFileName)
 	mergedFileName := mergeFiles(listFileName)
 	defer os.Remove(mergedFileName)
@@ -176,8 +181,30 @@ func runner(bookID string, tasks chan splitterTask, data chan bookEpisode, wg *s
 	}
 }
 
-func getDefaultBookMeta(book bookMeta) (string, string) {
-	return _defaultBookTitle, _defaultBookTitle
+func getDefaultBookMeta(book bookMeta) (author string, title string) {
+
+	first := getFileList(book.src)[0]
+	metaFile, err := ioutil.TempFile(os.TempDir(), "prefix")
+	defer metaFile.Close()
+	check(err)
+	simpleExec("ffmpeg", "-y", "-i", first, "-f", "ffmetadata", metaFile.Name())
+	f, err := os.Open(metaFile.Name())
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.SplitN(scanner.Text(), "=", 2)
+		if len(line) == 2 {
+			attr, value := line[0], line[1]
+			switch attr {
+			case "artist":
+				author = value
+			case "album":
+				title = value
+			}
+			fmt.Println(attr)
+			fmt.Println(value)
+		}
+	}
+	return author, title
 }
 
 func main() {
