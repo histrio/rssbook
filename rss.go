@@ -46,11 +46,11 @@ type rssBody struct {
 	EntryList []rssEntry `xml:"entry"`
 }
 
-func generateXML(book bookMeta, episodes episodesList) string {
+func generateXML(book bookMeta) string {
 	infoLog.Println("Generating xml")
 	entries := []rssEntry{}
 	t0 := time.Now()
-	for _, ep := range episodes {
+	for _, ep := range book.episodes {
 		n := fmt.Sprintf("%04d", ep.pos)
 		_, epFilename := filepath.Split(ep.file)
 		epName := fmt.Sprintf("Episode%s", n)

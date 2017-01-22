@@ -36,8 +36,9 @@ func getDuration(filename string) time.Time {
 	return t0
 }
 
-func split(book bookMeta, skip time.Time, limit time.Time) string {
-	fname := fmt.Sprintf("%v%02d%02d%02d.mp3", "part", skip.Hour(), skip.Minute(), skip.Second())
+func split(book bookMeta, skip time.Time, limit time.Time, pos int) string {
+	name := fmt.Sprintf("part%02d%02d%02d", skip.Hour(), skip.Minute(), skip.Second())
+	fname := fmt.Sprintf("%s.mp3", name)
 	fpath := path.Join(book.dst, fname)
 
 	t1s := formatTime(skip)
@@ -50,9 +51,12 @@ func split(book bookMeta, skip time.Time, limit time.Time) string {
 	splitedFilename := splitedFile.Name() + ".mp3"
 	defer os.Remove(splitedFilename)
 
-	titleMetadata := fmt.Sprintf("title=%v", book.title)
+	albumMetadata := fmt.Sprintf("album=%v", book.title)
+	authorMetadata := fmt.Sprintf("artist=%v", book.author)
+	titleMetadata := fmt.Sprintf("title=%v", name)
+	trackMetadata := fmt.Sprintf("track=%d", pos)
 
-	simpleExec("ffmpeg", "-y", "-i", book.src, "-metadata", titleMetadata, "-acodec", "copy", "-t", s1s, "-ss", t1s, splitedFilename)
+	simpleExec("ffmpeg", "-y", "-i", book.src, "-metadata", trackMetadata, "-metadata", albumMetadata, "-metadata", titleMetadata, "-metadata", authorMetadata, "-acodec", "copy", "-t", s1s, "-ss", t1s, splitedFilename)
 	simpleExec("lame", "-V", "9", "--vbr-new", "-mm", "-h", "-q", "0", "-f", splitedFilename, fpath)
 	return fpath
 }
