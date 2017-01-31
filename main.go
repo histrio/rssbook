@@ -112,9 +112,13 @@ func splitAsync(book bookMeta, t0 time.Time, src string) episodesList {
 		go runner(book.id, tasks, data, &wg)
 	}
 
+	var wg2 sync.WaitGroup
+	wg2.Add(1)
+
 	go func() {
-		defer wg.Done()
+		defer wg2.Done()
 		for t := range data {
+			fmt.Printf("%+v\n", t)
 			result = append(result, t)
 		}
 	}()
@@ -136,8 +140,11 @@ func splitAsync(book bookMeta, t0 time.Time, src string) episodesList {
 		tasks <- splitterTask{pos: -1}
 	}
 	close(tasks)
-
 	wg.Wait()
+	close(data)
+	wg2.Wait()
+
+	fmt.Printf("%+v\n", result)
 	return result
 }
 
@@ -200,8 +207,6 @@ func getDefaultBookMeta(book bookMeta) (author string, title string) {
 			case "album":
 				title = value
 			}
-			fmt.Println(attr)
-			fmt.Println(value)
 		}
 	}
 	return author, title
@@ -266,8 +271,8 @@ func main() {
 	episodes, err := cookAudio(book)
 	check(err)
 	book.episodes = episodes
-
 	xmlPath := generateXML(book)
+
 	m3uPath := generateM3U(book)
 	infoLog.Println(xmlPath)
 	infoLog.Println(m3uPath)
