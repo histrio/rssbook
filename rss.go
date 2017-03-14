@@ -83,10 +83,14 @@ func generateXML(book bookMeta) string {
 
 	sort.Sort(entrySorter(entries))
 
-	selfLink := strings.Join([]string{s3Url, s3Bucket, book.id + ".xml"}, "/")
+	selfLink := strings.Join([]string{s3Url, s3Bucket, book.id, book.id + ".xml"}, "/")
 	rss := &rssBody{
-		Title:    book.title,
-		ID:       getid("books.falseprotagonist.me", book.id, t0),
+		Title: book.title,
+		ID:    getid("books.falseprotagonist.me", book.id, t0),
+		Author: rssAuthor{
+			Name:  book.author,
+			Email: "rh@rh.rh",
+		},
 		Subtitle: "Audiobook as a podcast",
 		LinkList: []rssLink{
 			rssLink{Href: selfLink, Rel: "self"},

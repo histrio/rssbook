@@ -56,7 +56,7 @@ func split(book bookMeta, skip time.Time, limit time.Time, pos int) string {
 	titleMetadata := fmt.Sprintf("title=%v", name)
 	trackMetadata := fmt.Sprintf("track=%d", pos)
 
-	simpleExec("ffmpeg", "-y", "-i", book.src, "-metadata", trackMetadata, "-metadata", albumMetadata, "-metadata", titleMetadata, "-metadata", authorMetadata, "-acodec", "copy", "-t", s1s, "-ss", t1s, splitedFilename)
+	simpleExec("ffmpeg", "-y", "-i", book.src, "-write_xing", "0", "-metadata", trackMetadata, "-metadata", albumMetadata, "-metadata", titleMetadata, "-metadata", authorMetadata, "-acodec", "copy", "-t", s1s, "-ss", t1s, splitedFilename)
 	simpleExec("lame", "-V", "9", "--vbr-new", "-mm", "-h", "-q", "0", "-f", splitedFilename, fpath)
 	return fpath
 }

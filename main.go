@@ -5,7 +5,6 @@ import (
 
 	"bufio"
 	"flag"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -118,7 +117,6 @@ func splitAsync(book bookMeta, t0 time.Time, src string) episodesList {
 	go func() {
 		defer wg2.Done()
 		for t := range data {
-			fmt.Printf("%+v\n", t)
 			result = append(result, t)
 		}
 	}()
@@ -144,7 +142,6 @@ func splitAsync(book bookMeta, t0 time.Time, src string) episodesList {
 	close(data)
 	wg2.Wait()
 
-	fmt.Printf("%+v\n", result)
 	return result
 }
 
@@ -240,7 +237,7 @@ func main() {
 
 	if bookID == "" {
 		bookID = filepath.Base(src)
-		warningLog.Println("No name specifyed. '" + bookID + "' used")
+		warningLog.Println("No book-id specifyed. '" + bookID + "' used")
 	}
 
 	dest := path.Join(dst, bookID)
