@@ -41,9 +41,9 @@ func split(book bookMeta, skip time.Time, limit time.Time, pos int) string {
 	fname := fmt.Sprintf("%s.mp3", name)
 	fpath := path.Join(book.dst, fname)
 
-	t1s := formatTime(skip)
-	s1s := formatTime(limit)
-	infoLog.Println("Split " + t1s)
+	//t1s := formatTime(skip)
+	//s1s := formatTime(limit)
+	//infoLog.Println("Split " + t1s)
 
 	splitedFile, err := ioutil.TempFile(os.TempDir(), "rssbook-")
 	check(err)
@@ -51,12 +51,12 @@ func split(book bookMeta, skip time.Time, limit time.Time, pos int) string {
 	splitedFilename := splitedFile.Name() + ".mp3"
 	defer os.Remove(splitedFilename)
 
-	albumMetadata := fmt.Sprintf("album=%v", book.title)
-	authorMetadata := fmt.Sprintf("artist=%v", book.author)
-	titleMetadata := fmt.Sprintf("title=%v", name)
-	trackMetadata := fmt.Sprintf("track=%d", pos)
+	//albumMetadata := fmt.Sprintf("album=%v", book.title)
+	//authorMetadata := fmt.Sprintf("artist=%v", book.author)
+	//titleMetadata := fmt.Sprintf("title=%v", name)
+	//trackMetadata := fmt.Sprintf("track=%d", pos)
 
-	simpleExec("ffmpeg", "-y", "-i", book.src, "-write_xing", "0", "-metadata", trackMetadata, "-metadata", albumMetadata, "-metadata", titleMetadata, "-metadata", authorMetadata, "-acodec", "copy", "-t", s1s, "-ss", t1s, splitedFilename)
-	simpleExec("lame", "-V", "9", "--vbr-new", "-mm", "-h", "-q", "0", "-f", splitedFilename, fpath)
+	//simpleExec("ffmpeg", "-y", "-i", book.src, "-metadata", trackMetadata, "-metadata", albumMetadata, "-metadata", titleMetadata, "-metadata", authorMetadata, "-acodec", "copy", "-t", s1s, "-ss", t1s, "-write_xing", "0", splitedFilename)
+	//simpleExec("lame", "-V", "9", "--vbr-new", "-mm", "-h", "-q", "0", "-f", splitedFilename, fpath)
 	return fpath
 }
