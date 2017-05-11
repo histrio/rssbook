@@ -1,10 +1,9 @@
 package main
 
 import (
-	"strings"
-
 	"bufio"
 	"flag"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -13,6 +12,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -58,17 +58,22 @@ type bookMeta struct {
 }
 
 type bookEpisode struct {
-	//book bookMeta
-	file string
-	pos  int
+	file     string
+	filename string
+	name     string
+	href     string
+	n        string
+	pos      int
+	fileSize int64
+	duration time.Time
 }
 
 type episodesList []bookEpisode
-type entrySorter []rssEntry
+type entrySorter []rssItem
 
 func (a entrySorter) Len() int           { return len(a) }
 func (a entrySorter) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a entrySorter) Less(i, j int) bool { return a[i].ID < a[j].ID }
+func (a entrySorter) Less(i, j int) bool { return a[i].GUID.Value < a[j].GUID.Value }
 
 func (slice episodesList) Len() int {
 	return len(slice)
@@ -96,7 +101,7 @@ func splitAsync(book bookMeta, t0 time.Time, src string) episodesList {
 	var result episodesList
 
 	t1 := time.Time{}
-	s1 := t1.Add(time.Minute * 5)
+	s1 := t1.Add(time.Minute * 10)
 
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	jobs := runtime.NumCPU() * 2
@@ -176,10 +181,11 @@ func runner(bookID string, tasks chan splitterTask, data chan bookEpisode, wg *s
 		if task.pos == -1 {
 			break
 		}
-		filename := split(task.book, task.skip, task.limit, task.pos)
+		filename, duration := split(task.book, task.skip, task.limit, task.pos)
 		episode := bookEpisode{
-			pos:  task.pos,
-			file: filename,
+			pos:      task.pos,
+			file:     filename,
+			duration: duration,
 		}
 		data <- episode
 	}
@@ -267,7 +273,18 @@ func main() {
 
 	episodes, err := cookAudio(book)
 	check(err)
-	book.episodes = episodes
+
+	updatedEpisodes := episodesList{}
+	for _, ep := range episodes {
+		ep.n = fmt.Sprintf("%04d", ep.pos)
+		_, ep.filename = filepath.Split(ep.file)
+		ep.name = fmt.Sprintf("Episode%s", ep.n)
+		ep.fileSize = getFileSize(ep.file)
+		ep.href = strings.Join([]string{s3Url, s3Bucket, book.id, ep.filename}, "/")
+		updatedEpisodes = append(updatedEpisodes, ep)
+	}
+
+	book.episodes = updatedEpisodes
 	xmlPath := generateXML(book)
 
 	m3uPath := generateM3U(book)

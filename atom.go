@@ -54,7 +54,7 @@ func generateXML(book bookMeta) string {
 		n := fmt.Sprintf("%04d", ep.pos)
 		_, epFilename := filepath.Split(ep.file)
 		epName := fmt.Sprintf("Episode%s", n)
-		//epSize := getFileSize(ep.file)
+		epSize := getFileSize(ep.file)
 
 		content := fmt.Sprintf("Episode %s for %s", n, book.id)
 		href := strings.Join([]string{s3Url, s3Bucket, book.id, epFilename}, "/")
@@ -65,11 +65,11 @@ func generateXML(book bookMeta) string {
 			LinkList: []rssLink{
 				rssLink{Href: siteURL + book.id, Rel: "alternate"},
 				rssLink{
-					Href:  href,
-					Rel:   "alternate",
-					Type:  "audio/mpeg",
-					Title: epName,
-					//Length: epSize,
+					Href:   href,
+					Rel:    "alternate",
+					Type:   "audio/mpeg",
+					Title:  epName,
+					Length: epSize,
 				},
 			},
 			Author: rssAuthor{
