@@ -136,7 +136,7 @@ func splitAsync(book bookMeta, t0 time.Time, src string) episodesList {
 			limit: s1,
 		}
 		tasks <- task
-		t1 = t1.Add(time.Minute * 5)
+		t1 = t1.Add(time.Minute * 10)
 	}
 
 	for i := 0; i < jobs; i++ {

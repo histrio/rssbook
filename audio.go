@@ -58,6 +58,7 @@ func split(book bookMeta, skip time.Time, limit time.Time, pos int) (string, tim
 
 	simpleExec("ffmpeg", "-y", "-i", book.src, "-metadata", trackMetadata, "-metadata", albumMetadata, "-metadata", titleMetadata, "-metadata", authorMetadata, "-acodec", "copy", "-t", s1s, "-ss", t1s, "-write_xing", "0", splitedFilename)
 	simpleExec("lame", "-V", "9", "--vbr-new", "-mm", "-h", "-q", "0", "-f", splitedFilename, fpath)
+	//simpleExec("ffmpeg", "-i", splitedFilename, "-codec:a", "libmp3lame", "-qscale:a", "9", fpath)
 	duration := getDuration(fpath)
 	return fpath, duration
 }
