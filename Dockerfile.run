@@ -1,7 +1,0 @@
-FROM scratch
-ADD empty /tmp/
-ADD ffmpeg /
-ADD ffprobe /
-ADD main /
-ENV PATH /
-ENTRYPOINT ["/main"]

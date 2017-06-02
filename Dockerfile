@@ -1,2 +1,7 @@
-FROM golang:onbuild
-CMD ["CGO_ENABLED=0", "GOOS=linux", "go", "build", "-a", "-installsuffix", "cgo", "-o", "main", main.go, rss.go, utils.go, audio.go]
+FROM scratch
+ADD empty /tmp/
+ADD ./build/ffmpeg /
+ADD ./build/ffprobe /
+ADD ./build/main /
+ENV PATH /
+ENTRYPOINT ["/main"]
