@@ -44,6 +44,10 @@ func formatTime(t time.Time) string {
 	return fmt.Sprintf("%02d:%02d:%02d", t.Hour(), t.Minute(), t.Second())
 }
 
+func formatDuration(d time.Duration) string {
+	return fmt.Sprintf("%02f", d.Seconds())
+}
+
 // Collects files from folder to merge
 func getFileList(dir string) []string {
 	files, err := ioutil.ReadDir(dir)

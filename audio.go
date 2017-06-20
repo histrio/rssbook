@@ -21,7 +21,7 @@ func mergeFiles(listFileName string) string {
 }
 
 // Calculate duration of audio file
-func getDuration(filename string) time.Time {
+func getDuration(filename string) time.Duration {
 	durationRaw := simpleExec("ffprobe", "-i", filename, "-show_entries", "format=duration", "-v", "quiet", "-of", "csv")
 	duration := strings.Split(durationRaw, ",")[1]
 	durationS := strings.Split(duration, ".")
@@ -29,14 +29,10 @@ func getDuration(filename string) time.Time {
 	check(err)
 	nseconds, err := strconv.ParseInt(strings.TrimSpace(durationS[1]), 10, 64)
 	check(err)
-	t0 := time.Time{}
-	t0 = t0.Add(time.Second * time.Duration(seconds))
-	t0 = t0.Add(time.Nanosecond * time.Duration(nseconds))
-	infoLog.Println("Duration: " + formatTime(t0))
-	return t0
+	return time.Second*time.Duration(seconds) + time.Nanosecond*time.Duration(nseconds)
 }
 
-func split(book bookMeta, skip time.Time, limit time.Time, pos int) (string, time.Time) {
+func doSplit(book bookMeta, skip time.Time, limit time.Time, pos int) (string, time.Duration) {
 	name := fmt.Sprintf("part%02d%02d%02d", skip.Hour(), skip.Minute(), skip.Second())
 	fname := fmt.Sprintf("%s.mp3", name)
 	fpath := path.Join(book.dst, fname)
@@ -57,7 +53,6 @@ func split(book bookMeta, skip time.Time, limit time.Time, pos int) (string, tim
 	trackMetadata := fmt.Sprintf("track=%d", pos)
 
 	simpleExec("ffmpeg", "-y", "-i", book.src, "-metadata", trackMetadata, "-metadata", albumMetadata, "-metadata", titleMetadata, "-metadata", authorMetadata, "-acodec", "copy", "-t", s1s, "-ss", t1s, "-write_xing", "0", splitedFilename)
-	//simpleExec("lame", "-V", "9", "--vbr-new", "-mm", "-h", "-q", "0", "-f", splitedFilename, fpath)
 	simpleExec("ffmpeg", "-i", splitedFilename, "-codec:a", "libmp3lame", "-qscale:a", "9", fpath)
 	duration := getDuration(fpath)
 	return fpath, duration
