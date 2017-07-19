@@ -3,8 +3,6 @@ package main
 import (
 	"encoding/xml"
 	"fmt"
-	"os"
-	"path"
 	"strings"
 	"time"
 )
@@ -110,7 +108,6 @@ func generateXML(book bookMeta) string {
 	items := []rssItem{}
 	t0 := time.Now()
 	for _, ep := range book.episodes {
-		infoLog.Println(ep.href)
 		item := rssItem{
 			Title: ep.name,
 			Link:  ep.href,
@@ -165,9 +162,5 @@ func generateXML(book bookMeta) string {
 
 	out, err := xml.MarshalIndent(rss, "", "  ")
 	check(err)
-	xmlDest := path.Join(book.dst, book.id+".xml")
-	f, err := os.Create(xmlDest)
-	check(err)
-	f.WriteString(xml.Header + string(out))
-	return xmlDest
+	return xml.Header + string(out)
 }
