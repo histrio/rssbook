@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -14,6 +15,23 @@ import (
 func getid(domain string, link string, date time.Time) string {
 	dateFormatted := fmt.Sprintf("%d-%02d-%02d", date.Year(), date.Month(), date.Day())
 	return fmt.Sprintf("tag:%v,%v:%v", domain, dateFormatted, link)
+}
+
+func getFiles(dir string) chan fileName {
+	c := make(chan fileName)
+	go func() {
+		files, err := ioutil.ReadDir(dir)
+		check(err)
+		for _, f := range files {
+			fname := f.Name()
+			ext := filepath.Ext(fname)
+			if ext == ".mp3" {
+				c <- fileName(path.Join(dir, fname))
+			}
+		}
+		close(c)
+	}()
+	return c
 }
 
 func getFileSize(fn string) int64 {
@@ -44,30 +62,22 @@ func formatTime(t time.Time) string {
 	return fmt.Sprintf("%02d:%02d:%02d", t.Hour(), t.Minute(), t.Second())
 }
 
-// Collects files from folder to merge
-func getFileList(dir string) []string {
-	files, err := ioutil.ReadDir(dir)
-	check(err)
-
-	var result []string
-
-	for _, f := range files {
-		fname := f.Name()
-		ext := filepath.Ext(fname)
-		if ext == ".mp3" {
-			result = append(result, path.Join(dir, fname))
-		}
-	}
-	return result
+func formatDuration(d time.Duration) string {
+	return fmt.Sprintf("%02f", d.Seconds())
 }
 
-func getFileListFile(dir string) string {
-	listFile, err := ioutil.TempFile(os.TempDir(), "prefix")
-	defer listFile.Close()
+func copyFile(src fileName, dst string) {
+	srcFile, err := os.Open(string(src))
+	check(err)
+	defer srcFile.Close()
+
+	destFile, err := os.Create(dst)
+	check(err)
+	defer destFile.Close()
+
+	_, err = io.Copy(destFile, srcFile)
 	check(err)
 
-	for _, f := range getFileList(dir) {
-		listFile.WriteString(fmt.Sprintf("file '%v'\n", f))
-	}
-	return listFile.Name()
+	err = destFile.Sync()
+	check(err)
 }

@@ -1,7 +1,7 @@
 FROM scratch
 ADD empty /tmp/
-ADD ./build/ffmpeg /
-ADD ./build/ffprobe /
+ADD ./build/ffmpeg.compressed /ffmpeg
+ADD ./build/ffprobe.compressed /ffprobe
 ADD ./build/main /
 ENV PATH /
-ENTRYPOINT ["/main"]
+ENTRYPOINT ["/main", "--src", "/book", "--dst", "/book"]

@@ -11,6 +11,18 @@ ifeq ("$(wildcard ./build/ffmpeg)","")
 	cd ./build && tar -xf /tmp/ffmpeg-git-64bit-static.tar.xz --wildcards --no-anchored 'ffmpeg' --no-anchored 'ffprobe' --strip=1 
 	rm -rf /tmp/ffmpeg-git-64bit-static.tar.xz
 endif
-	docker build -t histrio/rssbook:latest -t histrio/rssbook:${VER} .
+ifeq ("$(wildcard ./build/upx)","")
+	curl "https://github.com/upx/upx/releases/download/v3.94/upx-3.94-amd64_linux.tar.xz" -L --fail -o /tmp/upx-3.94-amd64_linux.tar.xz
+	cd ./build && tar -xf /tmp/upx-3.94-amd64_linux.tar.xz --wildcards --no-anchored 'upx' --strip=1 
+	rm -rf /tmp/upx-3.94-amd64_linux.tar.xz
+endif
+ifeq ("$(wildcard ./build/ffprobe.compressed)","")
+	cd ./build && ./upx --best ffprobe -offprobe.compressed
+endif
+ifeq ("$(wildcard ./build/ffmpeg.compressed)","")
+	cd ./build && ./upx --best ffmpeg -offmpeg.compressed
+endif
+	cd ./build && ./upx --best main
+	docker build --no-cache -t histrio/rssbook:latest -t histrio/rssbook:${VER} .
 	docker push histrio/rssbook:${VER}
 	docker push histrio/rssbook:latest
