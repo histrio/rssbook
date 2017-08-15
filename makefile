@@ -1,13 +1,14 @@
 .PHONY: build docker-build get-ffmpeg
 export VOLUME_NAME=my-data
+export BOOK_ID=${BOOK_ID:-book}
 
 build:
 	go build -v -a -installsuffix cgo -o ./build/main main.go rss.go utils.go audio.go
 
 start:
 	docker create -v ~/temp/:/data --name ${VOLUME_NAME} busybox /bin/true
-	docker run -it --rm --privileged --volumes-from ${VOLUME_NAME} histrio/rssbook:latest --name AmericanGods10
-	docker run -it --rm -e AWS_CREDENTIAL_FILE=/root/.aws/credentials --volumes-from ${VOLUME_NAME} --volume ~/.aws:/root/.aws cgswong/aws:s3cmd put -r -rr -P /data/AmericanGods10 s3://falseprotagonist-one/
+	docker run -it --rm --privileged --volumes-from ${VOLUME_NAME} histrio/rssbook:latest --name ${BOOK_ID}
+	docker run -it --rm -e AWS_CREDENTIAL_FILE=/root/.aws/credentials --volumes-from ${VOLUME_NAME} --volume ~/.aws:/root/.aws cgswong/aws:s3cmd put -r -rr -P /data/${BOOK_ID} s3://falseprotagonist-one/
 	docker rm ${VOLUME_NAME} &
 	# docker run -it --rm  --volumes-from ${VOLUME_NAME} histrio/rssbook-yt:latest
 
