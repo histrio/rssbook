@@ -56,8 +56,8 @@ type bookEpisode struct {
 type episodesList []bookEpisode
 
 const siteURL string = "https://books.falseprotagonist.me/"
-const s3Url string = "https://s3-eu-west-1.amazonaws.com"
-const s3Bucket string = "falseprotagonist-one"
+const s3Url string = "https://s3-eu-west-1.amazonaws.com/"
+const s3Bucket string = "falseprotagonist-one/"
 
 const _defaultBookAuthor string = "< Book Author >"
 const _defaultBookTitle string = "< Title >"
@@ -146,17 +146,25 @@ func main() {
 		author: bookAuthor,
 	}
 
+	pos := 0
 	for epFile := range cookAudio(src) {
+
+		pos = pos + 1
 
 		_, filename := filepath.Split(string(epFile))
 
 		go func() {
-			copyFile(epFile, path.Join(dest, filename))
+			copyFile(epFile, path.Join(dest, filename+".mp3"))
 			check(err)
 		}()
 
 		ep := bookEpisode{
-			file: filename,
+			pos:      pos,
+			name:     filename,
+			file:     filename,
+			fileSize: getFileSize(epFile),
+			href:     s3Url + s3Bucket + book.id + "/" + filename + ".mp3",
+			duration: getDuration(epFile),
 		}
 
 		book.episodes = append(book.episodes, ep)

@@ -122,7 +122,7 @@ func generateXML(book bookMeta) string {
 			},
 			PubDate:        t0.Add(time.Second * time.Duration(ep.pos)),
 			ItunesExplicit: "no",
-			//ItunesDuration: ep.duration.Format("15:04:05"),
+			ItunesDuration: ep.duration.String(),
 		}
 		items = append(items, item)
 	}

@@ -34,8 +34,8 @@ func getFiles(dir string) chan fileName {
 	return c
 }
 
-func getFileSize(fn string) int64 {
-	file, err := os.Open(fn)
+func getFileSize(fn fileName) int64 {
+	file, err := os.Open(string(fn))
 	check(err)
 	fi, err := file.Stat()
 	check(err)
