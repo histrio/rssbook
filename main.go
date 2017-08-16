@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sync"
 	"time"
 )
 
@@ -84,7 +85,8 @@ func cookAudio(src string) chan fileName {
 	return compressedEpisodes
 }
 
-func cookRss(book bookMeta, dst string) fileName {
+func cookRss(wg *sync.WaitGroup, book bookMeta, dst string) fileName {
+	defer wg.Done()
 	xmlDest := path.Join(dst, book.id+".xml")
 	f, err := os.Create(xmlDest)
 	check(err)
@@ -93,13 +95,14 @@ func cookRss(book bookMeta, dst string) fileName {
 	return fileName(xmlDest)
 }
 
-func generateM3U(book bookMeta, dst string) string {
+func generateM3U(wg *sync.WaitGroup, book bookMeta, dst string) string {
+	defer wg.Done()
 	m3uDest := path.Join(dst, book.id+".m3u")
 	f, err := os.Create(m3uDest)
 	check(err)
 	f.WriteString("#EXTM3U\n\n")
 	for _, ep := range book.episodes {
-		f.WriteString(ep.file + "\n")
+		f.WriteString(ep.file + ".mp3\n")
 	}
 	return m3uDest
 }
@@ -147,6 +150,7 @@ func main() {
 	}
 
 	pos := 0
+	wg := &sync.WaitGroup{}
 	for epFile := range cookAudio(src) {
 
 		pos = pos + 1
@@ -168,8 +172,10 @@ func main() {
 		}
 
 		book.episodes = append(book.episodes, ep)
-		go cookRss(book, dest)
-		go generateM3U(book, dest)
-
+		wg.Add(2)
+		go cookRss(wg, book, dest)
+		go generateM3U(wg, book, dest)
 	}
+
+	wg.Wait()
 }

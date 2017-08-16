@@ -14,13 +14,13 @@ func TestGetID(t *testing.T) {
 }
 
 func TestGetFileSize(t *testing.T) {
-	fileName := "/tmp/dat2"
-	f, err := os.Create(fileName)
+	filename := "/tmp/dat2"
+	f, err := os.Create(filename)
 	check(err)
 	d2 := []byte{115, 111, 109, 101, 10}
 	n2, err := f.Write(d2)
 	check(err)
-	size := getFileSize(fileName)
+	size := getFileSize(fileName(filename))
 	if size != int64(n2) {
 		t.Errorf("Size not right")
 	}
