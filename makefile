@@ -7,7 +7,8 @@ build:
 
 start:
 	docker create -v "${RSSBOOK_SOURCE}":/data --name ${VOLUME_NAME} busybox /bin/true
-	docker run -it --rm --privileged --volumes-from ${VOLUME_NAME} histrio/rssbook:latest --name ${BOOK_ID}
+	docker run -it --rm --privileged --volumes-from ${VOLUME_NAME} histrio/rssbook:latest \
+		--name "${BOOK_ID}"
 	docker run -it --rm -e AWS_CREDENTIAL_FILE=/root/.aws/credentials --volumes-from ${VOLUME_NAME} --volume ~/.aws:/root/.aws cgswong/aws:s3cmd put -r -rr -P /data/${BOOK_ID} ${RSSBOOK_S3_BUCKET}
 	docker rm ${VOLUME_NAME}
 

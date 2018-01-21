@@ -36,9 +36,7 @@ func initLoggers(
 }
 
 type bookMeta struct {
-	id string
-	//src      string
-	//dst      string
+	id       string
 	title    string
 	author   string
 	episodes episodesList
@@ -56,8 +54,8 @@ type bookEpisode struct {
 
 type episodesList []bookEpisode
 
-const siteURL string = "https://books.falseprotagonist.me/"
-const s3Url string = "https://s3-eu-west-1.amazonaws.com/"
+const siteURL string = "https://www.falseprotagonist.me/"
+const s3Url string = "http://files.falseprotagonist.me/"
 const s3Bucket string = "falseprotagonist-one/"
 
 const _defaultBookAuthor string = "< Book Author >"
@@ -152,6 +150,7 @@ func main() {
 	pos := 0
 	wg := &sync.WaitGroup{}
 	for epFile := range cookAudio(src) {
+		infoLog.Println("Issued: " + epFile)
 
 		pos = pos + 1
 
@@ -167,7 +166,7 @@ func main() {
 			name:     filename,
 			file:     filename,
 			fileSize: getFileSize(epFile),
-			href:     s3Url + s3Bucket + book.id + "/" + filename + ".mp3",
+			href:     s3Url + book.id + "/" + filename + ".mp3",
 			duration: getDuration(epFile),
 		}
 

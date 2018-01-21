@@ -7,6 +7,30 @@ import (
 	"time"
 )
 
+type RFC822Time struct {
+	time.Time
+}
+
+func (t RFC822Time) MarshalText() ([]byte, error) {
+	text := t.Time.Format("Mon, 02 Jan 2006 03:04:05 -0700")
+	return []byte(text), nil
+}
+
+type Duration struct {
+	time.Duration
+}
+
+func (d Duration) MarshalText() ([]byte, error) {
+	d2 := d.Round(time.Second)
+	h := d2 / time.Hour
+	d2 -= h * time.Hour
+	m := d2 / time.Minute
+	d2 -= m * time.Minute
+	s := d2 / time.Second
+	text := fmt.Sprintf("%02d:%02d:%02d", h, m, s)
+	return []byte(text), nil
+}
+
 type rssEnclosure struct {
 	Url    string `xml:"url,attr"`
 	Length int64  `xml:"length,attr"`
@@ -27,11 +51,11 @@ type rssItem struct {
 	Comments    string       `xml:"comments,omitempty"`
 	GUID        rssItemGUID  `xml:"guid"`
 	Enclosure   rssEnclosure `xml:"enclosure"`
-	PubDate     time.Time    `xml:"pubDate"`
-	Source      string       `xml:"source"`
+	PubDate     RFC822Time   `xml:"pubDate"`
+	Source      string       `xml:"source,omitempty"`
 
-	ItunesDuration string `xml:"itunes:duration"`
-	ItunesExplicit string `xml:"itunes:explicit"`
+	ItunesDuration Duration `xml:"itunes:duration"`
+	ItunesExplicit string   `xml:"itunes:explicit"`
 }
 
 type rssBody struct {
@@ -74,18 +98,18 @@ type rssChannel struct {
 	Link        string `xml:"link"`
 	Description string `xml:"description"`
 
-	Image          rssImage  `xml:"image,omitempty"`
-	ManagingEditor string    `xml:"managingEditor,omitempty"`
-	Language       string    `xml:"language"`
-	Copyrigt       string    `xml:"copyrigt,omitempty"`
-	LastBuildDate  time.Time `xml:"lastBuildDate,omitempty"`
-	Docs           string    `xml:"docs,omitempty"`
-	TTL            string    `xml:"ttl,omitempty"`
-	WebMaster      string    `xml:"webMaster,omitempty"`
-	Category       string    `xml:"category,omitempty"`
-	Generator      string    `xml:"generator,omitempty"`
-	Cloud          *rssCloud `xml:"cloud,omitempty"`
-	Rating         string    `xml:"rating,omitempty"`
+	Image          rssImage   `xml:"image,omitempty"`
+	ManagingEditor string     `xml:"managingEditor,omitempty"`
+	Language       string     `xml:"language"`
+	Copyrigt       string     `xml:"copyrigt,omitempty"`
+	LastBuildDate  RFC822Time `xml:"lastBuildDate,omitempty"`
+	Docs           string     `xml:"docs,omitempty"`
+	TTL            string     `xml:"ttl,omitempty"`
+	WebMaster      string     `xml:"webMaster,omitempty"`
+	Category       string     `xml:"category,omitempty"`
+	Generator      string     `xml:"generator,omitempty"`
+	Cloud          *rssCloud  `xml:"cloud,omitempty"`
+	Rating         string     `xml:"rating,omitempty"`
 
 	AtomLink       rssAtomLink `xml:"atom:link,omitempty"`
 	ItunesOwner    *rssItunesOwner
@@ -113,21 +137,21 @@ func generateXML(book bookMeta) string {
 			Link:  ep.href,
 			GUID: rssItemGUID{
 				IsPermaLink: false,
-				Value:       getid("books.falseprotagonist.me", fmt.Sprintf("%s%s", book.id, ep.n), t0),
+				Value:       getid("books.falseprotagonist.me", fmt.Sprintf("%s%d", book.id, ep.pos), t0),
 			},
 			Enclosure: rssEnclosure{
 				Url:    ep.href,
 				Type:   "audio/mpeg",
 				Length: ep.fileSize,
 			},
-			PubDate:        t0.Add(time.Second * time.Duration(ep.pos)),
+			PubDate:        RFC822Time{t0.Add(time.Second * time.Duration(ep.pos))},
 			ItunesExplicit: "no",
-			ItunesDuration: ep.duration.String(),
+			ItunesDuration: Duration{ep.duration},
 		}
 		items = append(items, item)
 	}
 
-	selfLink := strings.Join([]string{s3Url, s3Bucket, book.id + ".xml"}, "/")
+	selfLink := strings.Join([]string{s3Url, book.id + ".xml"}, "")
 	rss := &rssBody{
 		Version: "2.0",
 		Content: "http://purl.org/rss/1.0/modules/content/",
@@ -145,11 +169,11 @@ func generateXML(book bookMeta) string {
 				Rel:  "self",
 				Type: "application/rss+xml",
 			},
-			LastBuildDate: t0,
+			LastBuildDate: RFC822Time{t0},
 			Image: rssImage{
 				Title:  book.title,
 				Link:   "https://falseprotagonist.me",
-				Url:    "https://s3-eu-west-1.amazonaws.com/falseprotagonist-one/audiobook.png",
+				Url:    "https://files.falseprotagonist.me/audiobook.png",
 				Width:  "144",
 				Height: "144",
 			},
