@@ -1,8 +1,9 @@
-package main
+package rss
 
 import (
 	"encoding/xml"
 	"fmt"
+	"github.com/histrio/rssbook/pkg/utils"
 	"strings"
 	"time"
 )
@@ -127,38 +128,38 @@ type rssImage struct {
 	Height string `xml:"height"`
 }
 
-func generateXML(book bookMeta) string {
+func GenerateXML(book utils.BookMeta) string {
 
 	items := []rssItem{}
 	t0 := time.Now()
-	for _, ep := range book.episodes {
+	for _, ep := range book.Episodes {
 		item := rssItem{
-			Title: ep.name,
-			Link:  ep.href,
+			Title: ep.Name,
+			Link:  ep.Href,
 			GUID: rssItemGUID{
 				IsPermaLink: false,
-				Value:       getid("books.falseprotagonist.me", fmt.Sprintf("%s%d", book.id, ep.pos), t0),
+				Value:       utils.Getid("books.falseprotagonist.me", fmt.Sprintf("%s%d", book.Id, ep.Pos), t0),
 			},
 			Enclosure: rssEnclosure{
-				Url:    ep.href,
+				Url:    ep.Href,
 				Type:   "audio/mpeg",
-				Length: ep.fileSize,
+				Length: ep.FileSize,
 			},
-			PubDate:        RFC822Time{t0.Add(time.Second * time.Duration(ep.pos))},
+			PubDate:        RFC822Time{t0.Add(time.Second * time.Duration(ep.Pos))},
 			ItunesExplicit: "no",
-			ItunesDuration: Duration{ep.duration},
+			ItunesDuration: Duration{ep.Duration},
 		}
 		items = append(items, item)
 	}
 
-	selfLink := strings.Join([]string{s3Url, book.id + ".xml"}, "")
+	selfLink := strings.Join([]string{utils.S3Url, book.Id + "/", book.Id + ".xml"}, "")
 	rss := &rssBody{
 		Version: "2.0",
 		Content: "http://purl.org/rss/1.0/modules/content/",
 		Atom:    "http://www.w3.org/2005/Atom",
 		Itunes:  "http://www.itunes.com/dtds/podcast-1.0.dtd",
 		Channel: rssChannel{
-			Title:       book.title,
+			Title:       book.Title,
 			Link:        selfLink,
 			Description: "Audiobook as a podcast",
 			Language:    "ru",
@@ -171,8 +172,8 @@ func generateXML(book bookMeta) string {
 			},
 			LastBuildDate: RFC822Time{t0},
 			Image: rssImage{
-				Title:  book.title,
-				Link:   "https://falseprotagonist.me",
+				Title:  book.Title,
+				Link:   selfLink,
 				Url:    "https://files.falseprotagonist.me/audiobook.png",
 				Width:  "144",
 				Height: "144",
@@ -185,6 +186,6 @@ func generateXML(book bookMeta) string {
 	}
 
 	out, err := xml.MarshalIndent(rss, "", "  ")
-	check(err)
+	utils.Check(err)
 	return xml.Header + string(out)
 }

@@ -1,20 +1,25 @@
 .PHONY: build docker-build get-ffmpeg
 VOLUME_NAME = my-data
-RSSBOOK_S3_BUCKET = s3://falseprotagonist-one/
+RSSBOOK_S3_BUCKET = s3://files.falseprotagonist.me/
+
+RELEASE?=0.0.1
+COMMIT?=$(shell git rev-parse --short HEAD)
+BUILD_TIME?=$(shell date -u '+%Y-%m-%d_%H:%M:%S')
+PROJECT?=github.com/histrio/rssbook
 
 build:
-	go build -v -a -installsuffix cgo -o ./build/main main.go rss.go utils.go audio.go
+	go build -v -a -installsuffix cgo -ldflags "-s -w -X ${PROJECT}/pkg/version.Release=${RELEASE} -X ${PROJECT}/pkg/version.Commit=${COMMIT} -X ${PROJECT}/pkg/version.BuildTime=${BUILD_TIME}" -o ./build/main cmd/rssbookcli/main.go
 
 start:
-	docker create -v "${RSSBOOK_SOURCE}":/data --name ${VOLUME_NAME} busybox /bin/true
+	docker create -v "${BOOK_SOURCE}":/data --name ${VOLUME_NAME} busybox /bin/true
 	docker run -it --rm --privileged --volumes-from ${VOLUME_NAME} histrio/rssbook:latest \
-		--name "${BOOK_ID}"
+		--name "${BOOK_ID}" --author "${BOOK_AUTHOR}" --title "${BOOK_TITLE}"
 	docker run -it --rm -e AWS_CREDENTIAL_FILE=/root/.aws/credentials --volumes-from ${VOLUME_NAME} --volume ~/.aws:/root/.aws cgswong/aws:s3cmd put -r -rr -P /data/${BOOK_ID} ${RSSBOOK_S3_BUCKET}
 	docker rm ${VOLUME_NAME}
 
 docker-build:
 	mkdir -p ./build
-	docker run --rm -v "${PWD}":/app -w /app -e CGO_ENABLED=0 -e GOOS=linux golang:latest make build
+	docker run --rm -v "${PWD}":/go/src/github.com/histrio/rssbook -w /go/src/github.com/histrio/rssbook -e CGO_ENABLED=0 -e GOOS=linux golang:latest make build
 ifeq ("$(wildcard ./build/ffmpeg)","")
 	curl https://johnvansickle.com/ffmpeg/builds/ffmpeg-git-64bit-static.tar.xz -o /tmp/ffmpeg-git-64bit-static.tar.xz
 	cd ./build && tar -xf /tmp/ffmpeg-git-64bit-static.tar.xz --wildcards --no-anchored 'ffmpeg' --no-anchored 'ffprobe' --strip=1

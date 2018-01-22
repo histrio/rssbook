@@ -2,13 +2,17 @@ package main
 
 import (
 	"flag"
+	"fmt"
+	"github.com/histrio/rssbook/pkg/audio"
+	"github.com/histrio/rssbook/pkg/rss"
+	"github.com/histrio/rssbook/pkg/utils"
+	"github.com/histrio/rssbook/pkg/version"
 	"io"
 	"log"
 	"os"
 	"path"
 	"path/filepath"
 	"sync"
-	"time"
 )
 
 var (
@@ -35,78 +39,45 @@ func initLoggers(
 		log.Ldate|log.Ltime|log.Lshortfile)
 }
 
-type bookMeta struct {
-	id       string
-	title    string
-	author   string
-	episodes episodesList
-}
-
-type bookEpisode struct {
-	name     string
-	href     string
-	n        string
-	pos      int
-	file     string
-	fileSize int64
-	duration time.Duration
-}
-
-type episodesList []bookEpisode
-
-const siteURL string = "https://www.falseprotagonist.me/"
-const s3Url string = "http://files.falseprotagonist.me/"
-const s3Bucket string = "falseprotagonist-one/"
-
 const _defaultBookAuthor string = "< Book Author >"
 const _defaultBookTitle string = "< Title >"
 
-type fileSplit struct {
-	inputFile fileName
-	from      time.Duration
-	to        time.Duration
-}
-
-type audioMeta struct {
-	author string
-	title  string
-}
-
-type splitPlan []fileSplit
-type fileName string
-
-func cookAudio(src string) chan fileName {
-	files := getFiles(src)
-	splittedFiles := getSplittedEpisodes(files, 10)
-	mergedEpisodes := getMergedEpisodes(splittedFiles)
-	compressedEpisodes := getComressedEpisodes(mergedEpisodes)
+func cookAudio(src string) chan utils.FileName {
+	files := utils.GetFiles(src)
+	splittedFiles := audio.GetSplittedEpisodes(files, 10)
+	mergedEpisodes := audio.GetMergedEpisodes(splittedFiles)
+	compressedEpisodes := audio.GetCompressedEpisodes(mergedEpisodes)
 	return compressedEpisodes
 }
 
-func cookRss(wg *sync.WaitGroup, book bookMeta, dst string) fileName {
+func cookRss(wg *sync.WaitGroup, book utils.BookMeta, dst string) utils.FileName {
 	defer wg.Done()
-	xmlDest := path.Join(dst, book.id+".xml")
+	xmlDest := path.Join(dst, book.Id+".xml")
 	f, err := os.Create(xmlDest)
-	check(err)
+	utils.Check(err)
 	defer f.Close()
-	f.WriteString(generateXML(book))
-	return fileName(xmlDest)
+	f.WriteString(rss.GenerateXML(book))
+	return utils.FileName(xmlDest)
 }
 
-func generateM3U(wg *sync.WaitGroup, book bookMeta, dst string) string {
+func generateM3U(wg *sync.WaitGroup, book utils.BookMeta, dst string) string {
 	defer wg.Done()
-	m3uDest := path.Join(dst, book.id+".m3u")
+	m3uDest := path.Join(dst, book.Id+".m3u")
 	f, err := os.Create(m3uDest)
-	check(err)
+	utils.Check(err)
 	f.WriteString("#EXTM3U\n\n")
-	for _, ep := range book.episodes {
-		f.WriteString(ep.file + ".mp3\n")
+	for _, ep := range book.Episodes {
+		f.WriteString(ep.File + ".mp3\n")
 	}
 	return m3uDest
 }
 
 func main() {
 	initLoggers(os.Stdout, os.Stdout, os.Stderr)
+	infoLog.Printf(
+		"Starting the service...\ncommit: %s, build time: %s, release: %s",
+		version.Commit, version.BuildTime, version.Release,
+	)
 	var dst string
 	var src string
 	var bookID string
@@ -125,7 +96,7 @@ func main() {
 	}
 
 	pwd, err := os.Getwd()
-	check(err)
+	utils.Check(err)
 
 	if dst == "" {
 		dst = pwd
@@ -139,12 +110,12 @@ func main() {
 
 	dest := path.Join(dst, bookID)
 	err = os.Mkdir(dest, 0777)
-	check(err)
+	utils.Check(err)
 
-	book := bookMeta{
-		id:     bookID,
-		title:  bookTitle,
-		author: bookAuthor,
+	book := utils.BookMeta{
+		Id:     bookID,
+		Title:  bookTitle,
+		Author: bookAuthor,
 	}
 
 	pos := 0
@@ -157,20 +128,20 @@ func main() {
 		_, filename := filepath.Split(string(epFile))
 
 		go func() {
-			copyFile(epFile, path.Join(dest, filename+".mp3"))
-			check(err)
+			utils.CopyFile(epFile, path.Join(dest, filename+".mp3"))
+			utils.Check(err)
 		}()
 
-		ep := bookEpisode{
-			pos:      pos,
-			name:     filename,
-			file:     filename,
-			fileSize: getFileSize(epFile),
-			href:     s3Url + book.id + "/" + filename + ".mp3",
-			duration: getDuration(epFile),
+		ep := utils.BookEpisode{
+			Pos:      pos,
+			Name:     fmt.Sprintf("Episode %03d", pos),
+			File:     filename,
+			FileSize: utils.GetFileSize(epFile),
+			Href:     utils.S3Url + book.Id + "/" + filename + ".mp3",
+			Duration: audio.GetDuration(epFile),
 		}
 
-		book.episodes = append(book.episodes, ep)
+		book.Episodes = append(book.Episodes, ep)
 		wg.Add(2)
 		go cookRss(wg, book, dest)
 		go generateM3U(wg, book, dest)

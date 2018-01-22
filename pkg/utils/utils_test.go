@@ -1,4 +1,4 @@
-package main
+package utils
 
 import (
 	"os"
@@ -20,7 +20,7 @@ func TestGetFileSize(t *testing.T) {
 	d2 := []byte{115, 111, 109, 101, 10}
 	n2, err := f.Write(d2)
 	check(err)
-	size := getFileSize(fileName(filename))
+	size := getFileSize(FileName(filename))
 	if size != int64(n2) {
 		t.Errorf("Size not right")
 	}

@@ -1,8 +1,9 @@
-package main
+package audio
 
 import (
 	"bufio"
 	"fmt"
+	"github.com/histrio/rssbook/pkg/utils"
 	"io/ioutil"
 	"os"
 	"strconv"
@@ -11,51 +12,51 @@ import (
 )
 
 // Calculate duration of audio file
-func getDuration(filename fileName) time.Duration {
-	durationRaw := simpleExec("ffprobe", "-i", string(filename), "-show_entries", "format=duration", "-v", "quiet", "-of", "csv")
+func GetDuration(filename utils.FileName) time.Duration {
+	durationRaw := utils.SimpleExec("ffprobe", "-i", string(filename), "-show_entries", "format=duration", "-v", "quiet", "-of", "csv")
 	duration := strings.Split(durationRaw, ",")[1]
 	durationS := strings.Split(duration, ".")
 	seconds, err := strconv.ParseInt(strings.TrimSpace(durationS[0]), 10, 64)
-	check(err)
+	utils.Check(err)
 	nseconds, err := strconv.ParseInt(strings.TrimSpace(durationS[1]), 10, 64)
-	check(err)
+	utils.Check(err)
 	return time.Second*time.Duration(seconds) + time.Nanosecond*time.Duration(nseconds)
 }
 
-func getSplittedEpisodes(in <-chan fileName, limitMin int) chan splitPlan {
+func GetSplittedEpisodes(in <-chan utils.FileName, limitMin int) chan utils.SplitPlan {
 	episodeLimit := time.Duration(limitMin) * time.Minute
-	plan := make(chan splitPlan)
+	plan := make(chan utils.SplitPlan)
 	pos := 1
 	go func() {
-		splits := []fileSplit{}
+		splits := []utils.FileSplit{}
 		debt := time.Duration(0)
 		for f := range in {
-			duration := getDuration(f)
+			duration := GetDuration(f)
 			t0 := time.Duration(0)
 			if debt > time.Duration(0) {
 				if debt <= duration {
-					splits = append(splits, fileSplit{inputFile: f, from: t0, to: t0 + debt})
+					splits = append(splits, utils.FileSplit{InputFile: f, From: t0, To: t0 + debt})
 					plan <- splits
 					pos = pos + 1
-					splits = []fileSplit{}
+					splits = []utils.FileSplit{}
 					t0 = debt
 					debt = time.Duration(0)
 				}
 				if debt > duration {
-					splits = append(splits, fileSplit{
-						inputFile: f, from: t0, to: duration})
+					splits = append(splits, utils.FileSplit{
+						InputFile: f, From: t0, To: duration})
 					debt = debt - duration
 					continue
 				}
 			}
 			for (t0 + episodeLimit) < duration {
-				splits = append(splits, fileSplit{inputFile: f, from: t0, to: t0 + episodeLimit})
+				splits = append(splits, utils.FileSplit{InputFile: f, From: t0, To: t0 + episodeLimit})
 				plan <- splits
 				pos = pos + 1
-				splits = []fileSplit{}
+				splits = []utils.FileSplit{}
 				t0 = t0 + episodeLimit
 			}
-			splits = append(splits, fileSplit{inputFile: f, from: t0, to: duration})
+			splits = append(splits, utils.FileSplit{InputFile: f, From: t0, To: duration})
 			debt = episodeLimit - (duration - t0)
 		}
 		plan <- splits
@@ -65,28 +66,28 @@ func getSplittedEpisodes(in <-chan fileName, limitMin int) chan splitPlan {
 	return plan
 }
 
-func getMergedEpisodes(in <-chan splitPlan) chan fileName {
-	c := make(chan fileName)
+func GetMergedEpisodes(in <-chan utils.SplitPlan) chan utils.FileName {
+	c := make(chan utils.FileName)
 	go func() {
 		for episode := range in {
 			listFile, err := ioutil.TempFile(os.TempDir(), "rssbook_mergelist_")
-			check(err)
+			utils.Check(err)
 			temp := []string{}
 			for _, split := range episode {
 				tempFile, err := ioutil.TempFile(os.TempDir(), "rssbook_split_")
-				check(err)
+				utils.Check(err)
 				name := tempFile.Name()
 				temp = append(temp, name)
-				simpleExec("ffmpeg", "-y", "-i", string(split.inputFile), "-acodec", "copy", "-f", "mp3",
-					"-ss", formatDuration(split.from),
-					"-to", formatDuration(split.to),
+				utils.SimpleExec("ffmpeg", "-y", "-i", string(split.InputFile), "-acodec", "copy", "-f", "mp3",
+					"-ss", utils.FormatDuration(split.From),
+					"-to", utils.FormatDuration(split.To),
 					"-write_xing", "0", name)
 				listFile.WriteString(fmt.Sprintf("file '%v'\n", name))
 			}
 			listFile.Close()
 			ep, err := ioutil.TempFile(os.TempDir(), "rssbook_concat_")
-			check(err)
-			simpleExec("ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", listFile.Name(), "-f", "mp3", "-c", "copy", ep.Name())
+			utils.Check(err)
+			utils.SimpleExec("ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", listFile.Name(), "-f", "mp3", "-c", "copy", ep.Name())
 
 			go func() {
 				os.Remove(listFile.Name())
@@ -95,46 +96,46 @@ func getMergedEpisodes(in <-chan splitPlan) chan fileName {
 				}
 			}()
 
-			c <- fileName(ep.Name())
+			c <- utils.FileName(ep.Name())
 		}
 		close(c)
 	}()
 	return c
 }
 
-func getComressedEpisodes(in <-chan fileName) chan fileName {
-	c := make(chan fileName)
+func GetCompressedEpisodes(in <-chan utils.FileName) chan utils.FileName {
+	c := make(chan utils.FileName)
 	go func() {
 		for ep := range in {
 			listFile, err := ioutil.TempFile(os.TempDir(), "rssbook_compress_")
-			check(err)
-			simpleExec("ffmpeg", "-y", "-i", string(ep), "-codec:a", "libmp3lame", "-qscale:a", "9", "-f", "mp3", listFile.Name())
+			utils.Check(err)
+			utils.SimpleExec("ffmpeg", "-y", "-i", string(ep), "-codec:a", "libmp3lame", "-qscale:a", "9", "-f", "mp3", listFile.Name())
 			go os.Remove(string(ep))
-			c <- fileName(listFile.Name())
+			c <- utils.FileName(listFile.Name())
 		}
 		close(c)
 	}()
 	return c
 }
 
-func getAudioMeta(file fileName) audioMeta {
+func getAudioMeta(file utils.FileName) utils.AudioMeta {
 	metaFile, err := ioutil.TempFile(os.TempDir(), "rssbook_meta_")
 	defer metaFile.Close()
 	defer os.Remove(metaFile.Name())
-	check(err)
-	simpleExec("ffmpeg", "-y", "-i", string(file), "-f", "ffmetadata", metaFile.Name())
+	utils.Check(err)
+	utils.SimpleExec("ffmpeg", "-y", "-i", string(file), "-f", "ffmetadata", metaFile.Name())
 	f, err := os.Open(metaFile.Name())
 	scanner := bufio.NewScanner(f)
-	result := audioMeta{}
+	result := utils.AudioMeta{}
 	for scanner.Scan() {
 		line := strings.SplitN(scanner.Text(), "=", 2)
 		if len(line) == 2 {
 			attr, value := line[0], line[1]
 			switch attr {
 			case "artist":
-				result.author = value
+				result.Author = value
 			case "album":
-				result.title = value
+				result.Title = value
 			}
 		}
 	}
