@@ -124,8 +124,8 @@ type rssImage struct {
 	Title  string `xml:"title"`
 	Link   string `xml:"link"`
 	Url    string `xml:"url"`
-	Width  string `xml:"width"`
-	Height string `xml:"height"`
+	Width  int    `xml:"width"`
+	Height int    `xml:"height"`
 }
 
 func GenerateXML(book utils.BookMeta) string {
@@ -153,6 +153,9 @@ func GenerateXML(book utils.BookMeta) string {
 	}
 
 	selfLink := strings.Join([]string{utils.S3Url, book.Id + "/", book.Id + ".xml"}, "")
+	bookHash := utils.GetMD5Hash(selfLink)
+	imageSize := 1400
+	imageUrl := fmt.Sprintf("https://www.gravatar.com/avatar/%s?s=%d&d=retro&r=g", bookHash, imageSize)
 	rss := &rssBody{
 		Version: "2.0",
 		Content: "http://purl.org/rss/1.0/modules/content/",
@@ -174,9 +177,9 @@ func GenerateXML(book utils.BookMeta) string {
 			Image: rssImage{
 				Title:  book.Title,
 				Link:   selfLink,
-				Url:    "https://files.falseprotagonist.me/audiobook.png",
-				Width:  "144",
-				Height: "144",
+				Url:    imageUrl,
+				Width:  imageSize,
+				Height: imageSize,
 			},
 			ItunesExplicit: "no",
 			ItunesCategory: &rssItunesCategory{
