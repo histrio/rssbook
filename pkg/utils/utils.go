@@ -5,11 +5,9 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"time"
 )
@@ -51,28 +49,32 @@ type BookEpisode struct {
 
 type episodesList []BookEpisode
 
-func Getid(domain string, link string, date time.Time) string {
+// GetID generate id from args
+func GetID(domain string, link string, date time.Time) string {
 	dateFormatted := fmt.Sprintf("%d-%02d-%02d", date.Year(), date.Month(), date.Day())
 	return fmt.Sprintf("tag:%v,%v:%v", domain, dateFormatted, link)
 }
 
+// GetFiles returns a channel with files in directory. Ordered by names and subfolders included.
 func GetFiles(dir string) chan FileName {
 	c := make(chan FileName)
 	go func() {
-		files, err := ioutil.ReadDir(dir)
-		Check(err)
-		for _, f := range files {
-			fname := f.Name()
-			ext := filepath.Ext(fname)
+
+		e := filepath.Walk(dir, func(path string, f os.FileInfo, err error) error {
+			ext := filepath.Ext(path)
 			if ext == ".mp3" {
-				c <- FileName(path.Join(dir, fname))
+				log.Println("Processing: " + path)
+				c <- FileName(path)
 			}
-		}
+			return err
+		})
+		Check(e)
 		close(c)
 	}()
 	return c
 }
 
+// GetFileSize calculate file's size
 func GetFileSize(fn FileName) int64 {
 	file, err := os.Open(string(fn))
 	Check(err)
@@ -81,12 +83,14 @@ func GetFileSize(fn FileName) int64 {
 	return fi.Size()
 }
 
+// Check checks last error
 func Check(e error) {
 	if e != nil {
 		log.Fatalf("%s\n", e)
 	}
 }
 
+// SimpleExec executes command with args
 func SimpleExec(name string, arg ...string) string {
 	cmd := exec.Command(name, arg...)
 	output, err := cmd.CombinedOutput()
@@ -97,14 +101,17 @@ func SimpleExec(name string, arg ...string) string {
 	return string(output)
 }
 
+// FormatTime formats time into 00:00:00
 func FormatTime(t time.Time) string {
 	return fmt.Sprintf("%02d:%02d:%02d", t.Hour(), t.Minute(), t.Second())
 }
 
+// FormatDuration formats Duration into seconds
 func FormatDuration(d time.Duration) string {
 	return fmt.Sprintf("%02f", d.Seconds())
 }
 
+// CopyFile copyes a file
 func CopyFile(src FileName, dst string) {
 	srcFile, err := os.Open(string(src))
 	Check(err)
@@ -121,6 +128,7 @@ func CopyFile(src FileName, dst string) {
 	Check(err)
 }
 
+// GetMD5Hash calculates md5 for a string
 func GetMD5Hash(text string) string {
 	hasher := md5.New()
 	hasher.Write([]byte(text))

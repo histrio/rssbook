@@ -3,16 +3,19 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/histrio/rssbook/pkg/audio"
-	"github.com/histrio/rssbook/pkg/rss"
-	"github.com/histrio/rssbook/pkg/utils"
-	"github.com/histrio/rssbook/pkg/version"
 	"io"
 	"log"
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"sync"
+
+	"github.com/gosimple/slug"
+	"github.com/histrio/rssbook/pkg/audio"
+	"github.com/histrio/rssbook/pkg/rss"
+	"github.com/histrio/rssbook/pkg/utils"
+	"github.com/histrio/rssbook/pkg/version"
 )
 
 var (
@@ -41,6 +44,14 @@ func initLoggers(
 
 const _defaultBookAuthor string = "< Book Author >"
 const _defaultBookTitle string = "< Title >"
+
+func getTitleAndAuthor(src string) (string, string) {
+	firstFieldName := <-utils.GetFiles(src)
+	result := utils.SimpleExec("ffprobe", "-loglevel", "error", "-show_entries", "format_tags=title,artist", "-of", "default=noprint_wrappers=1:nokey=1", "-of", "csv", string(firstFieldName))
+	log.Println(result)
+	artistAndTitle := strings.Split(result, ",")
+	return artistAndTitle[1], artistAndTitle[2]
+}
 
 func cookAudio(src string) chan utils.FileName {
 	files := utils.GetFiles(src)
@@ -86,9 +97,9 @@ func main() {
 
 	flag.StringVar(&dst, "dst", "", "Generated files destination")
 	flag.StringVar(&src, "src", "", "Source of audiofiles")
-	flag.StringVar(&bookID, "name", "", "Shortname")
-	flag.StringVar(&bookTitle, "title", "", "Title")
-	flag.StringVar(&bookAuthor, "author", "", "Author")
+	flag.StringVar(&bookID, "name", "", "Set a shortname for the podcast. By default it would be a slugifyed source folder name.")
+	flag.StringVar(&bookTitle, "title", "", "Set title for the podcast. By default it would take a title from the first file of the book.")
+	flag.StringVar(&bookAuthor, "author", "", "Set an author for the podcast. By default it would take an artist from the first file of the book.")
 	flag.Parse()
 
 	if src == "" {
@@ -100,17 +111,27 @@ func main() {
 
 	if dst == "" {
 		dst = pwd
-		warningLog.Println("No destination specifyed. '" + pwd + "' used")
+		warningLog.Println("No destination specified. '" + pwd + "' used")
 	}
 
 	if bookID == "" {
-		bookID = filepath.Base(src)
-		warningLog.Println("No book-id specifyed. '" + bookID + "' used")
+		bookID = slug.Make(filepath.Base(src))
+		warningLog.Println("No book-id specified. '" + bookID + "' used")
 	}
 
 	dest := path.Join(dst, bookID)
 	err = os.Mkdir(dest, 0777)
 	utils.Check(err)
+
+	_title, _author := getTitleAndAuthor(src)
+	if bookAuthor == "" {
+		bookAuthor = _author
+		warningLog.Println("No book author specified. '" + bookAuthor + "' used")
+	}
+	if bookTitle == "" {
+		bookTitle = _title
+		warningLog.Println("No book author specified. '" + bookTitle + "' used")
+	}
 
 	book := utils.BookMeta{
 		Id:     bookID,

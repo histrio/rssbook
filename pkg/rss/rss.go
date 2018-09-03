@@ -3,9 +3,10 @@ package rss
 import (
 	"encoding/xml"
 	"fmt"
-	"github.com/histrio/rssbook/pkg/utils"
 	"strings"
 	"time"
+
+	"github.com/histrio/rssbook/pkg/utils"
 )
 
 type RFC822Time struct {
@@ -33,7 +34,7 @@ func (d Duration) MarshalText() ([]byte, error) {
 }
 
 type rssEnclosure struct {
-	Url    string `xml:"url,attr"`
+	URL    string `xml:"url,attr"`
 	Length int64  `xml:"length,attr"`
 	Type   string `xml:"type,attr"`
 }
@@ -102,7 +103,7 @@ type rssChannel struct {
 	Image          rssImage   `xml:"image,omitempty"`
 	ManagingEditor string     `xml:"managingEditor,omitempty"`
 	Language       string     `xml:"language"`
-	Copyrigt       string     `xml:"copyrigt,omitempty"`
+	Copyright      string     `xml:"copyright,omitempty"`
 	LastBuildDate  RFC822Time `xml:"lastBuildDate,omitempty"`
 	Docs           string     `xml:"docs,omitempty"`
 	TTL            string     `xml:"ttl,omitempty"`
@@ -123,7 +124,7 @@ type rssChannel struct {
 type rssImage struct {
 	Title  string `xml:"title"`
 	Link   string `xml:"link"`
-	Url    string `xml:"url"`
+	URL    string `xml:"url"`
 	Width  int    `xml:"width"`
 	Height int    `xml:"height"`
 }
@@ -138,10 +139,10 @@ func GenerateXML(book utils.BookMeta) string {
 			Link:  ep.Href,
 			GUID: rssItemGUID{
 				IsPermaLink: false,
-				Value:       utils.Getid("books.falseprotagonist.me", fmt.Sprintf("%s%d", book.Id, ep.Pos), t0),
+				Value:       utils.GetID("books.falseprotagonist.me", fmt.Sprintf("%s%d", book.Id, ep.Pos), t0),
 			},
 			Enclosure: rssEnclosure{
-				Url:    ep.Href,
+				URL:    ep.Href,
 				Type:   "audio/mpeg",
 				Length: ep.FileSize,
 			},
@@ -155,7 +156,7 @@ func GenerateXML(book utils.BookMeta) string {
 	selfLink := strings.Join([]string{utils.S3Url, book.Id + "/", book.Id + ".xml"}, "")
 	bookHash := utils.GetMD5Hash(selfLink)
 	imageSize := 1400
-	imageUrl := fmt.Sprintf("https://www.gravatar.com/avatar/%s?s=%d&d=retro&r=g", bookHash, imageSize)
+	imageURL := fmt.Sprintf("https://www.gravatar.com/avatar/%s?s=%d&d=retro&r=g", bookHash, imageSize)
 	rss := &rssBody{
 		Version: "2.0",
 		Content: "http://purl.org/rss/1.0/modules/content/",
@@ -177,7 +178,7 @@ func GenerateXML(book utils.BookMeta) string {
 			Image: rssImage{
 				Title:  book.Title,
 				Link:   selfLink,
-				Url:    imageUrl,
+				URL:    imageURL,
 				Width:  imageSize,
 				Height: imageSize,
 			},

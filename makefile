@@ -2,6 +2,8 @@
 VOLUME_NAME = my-data
 RSSBOOK_S3_BUCKET = s3://files.falseprotagonist.me/
 
+build:
+	CGO_ENABLED=0 GOOS=linux go build -v -a -installsuffix cgo -ldflags "-s -w -X ${PROJECT}/pkg/version.Release=${RELEASE} -X ${PROJECT}/pkg/version.Commit=$(git rev-parse --short HEAD) -X ${PROJECT}/pkg/version.BuildTime=$(date -u '+%Y-%m-%d_%H:%M:%S')" -o ./build/rssbook cmd/rssbookcli/main.go
 
 start:
 	docker create -v "${BOOK_SOURCE}":/data --name ${VOLUME_NAME} busybox /bin/true
@@ -11,7 +13,7 @@ start:
 		--volume ~/.aws:/root/.aws cgswong/aws:s3cmd put -r -rr -P /data/${BOOK_ID} ${RSSBOOK_S3_BUCKET}
 	docker rm ${VOLUME_NAME}
 
-build:
+docker-build:
 	docker build -t histrio/rssbook:latest -t histrio/rssbook:${VER} .
 	docker push histrio/rssbook:${VER}
 	docker push histrio/rssbook:latest
