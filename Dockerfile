@@ -1,8 +1,6 @@
 FROM golang:latest as builder
 COPY . /go/src/github.com/histrio/rssbook
 WORKDIR /go/src/github.com/histrio/rssbook
-ARG PROJECT=github.com/histrio/rssbook
-ARG RELEASE=0.0.2
 RUN mkdir /build
 RUN go get github.com/gosimple/slug
 RUN go test ./...

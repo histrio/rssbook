@@ -27,6 +27,12 @@ type AudioMeta struct {
 	Title  string
 }
 
+type Silence struct {
+	Start    time.Duration
+	End      time.Duration
+	Duration time.Duration
+}
+
 type SplitPlan []FileSplit
 type FileName string
 
