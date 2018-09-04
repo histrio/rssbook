@@ -1,5 +1,7 @@
 # rssbook
 
+![Docker Automated build](https://img.shields.io/docker/automated/histrio/rssbook-auto.svg)
+
 Makes podcast from audio book
 
 ## Usage
