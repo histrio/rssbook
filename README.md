@@ -1,6 +1,7 @@
 # rssbook
 
 ![Docker Automated build](https://img.shields.io/docker/automated/histrio/rssbook-auto.svg)
+[![Build Status](https://travis-ci.org/histrio/rssbook.svg?branch=master)](https://travis-ci.org/histrio/rssbook)
 
 Makes podcast from audio book
 
