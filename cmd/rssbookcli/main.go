@@ -48,7 +48,6 @@ const _defaultBookTitle string = "< Title >"
 func getTitleAndAuthor(src string) (string, string) {
 	firstFieldName := <-utils.GetFiles(src)
 	result := utils.SimpleExec("ffprobe", "-loglevel", "error", "-show_entries", "format_tags=title,artist", "-of", "default=noprint_wrappers=1:nokey=1", "-of", "csv", string(firstFieldName))
-	log.Println(result)
 	artistAndTitle := strings.Split(result, ",")
 	return artistAndTitle[1], artistAndTitle[2]
 }

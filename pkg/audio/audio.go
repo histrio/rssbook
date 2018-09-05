@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"math"
 	"os"
 	"regexp"
@@ -52,7 +51,7 @@ func GetSilences(filename utils.FileName) []utils.Silence {
 	silence = utils.Silence{}
 	for _, s := range strings.Split(res, "\n") {
 		if strings.HasPrefix(s, "[silence") {
-			s2 := s[33:]
+			s2 := s[strings.Index(s, "]")+2:]
 			if strings.HasPrefix(s2, "silence_start") {
 				strStart := rStart.FindStringSubmatch(s2)[1]
 				silence.Start = strToDuration(strStart)
@@ -83,9 +82,6 @@ func alignSilence(silences []utils.Silence, t time.Duration) time.Duration {
 	sort.Slice(distances, func(i, j int) bool {
 		return distances[i].d < distances[j].d
 	})
-	log.Println(t)
-	log.Println(distances[0].t)
-	log.Println("---")
 	return distances[0].t
 }
 
@@ -155,7 +151,6 @@ func GetMergedEpisodes(in <-chan utils.SplitPlan) chan utils.FileName {
 	c := make(chan utils.FileName)
 	go func() {
 		for episode := range in {
-			log.Println(episode)
 			listFile, err := ioutil.TempFile(os.TempDir(), "rssbook_mergelist_")
 			utils.Check(err)
 			temp := []string{}
