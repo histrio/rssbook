@@ -1,3 +1,4 @@
 *.orig
 Dockerfile
 build/
+.history/

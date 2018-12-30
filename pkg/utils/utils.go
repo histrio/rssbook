@@ -10,6 +10,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"time"
+
+	"github.com/histrio/rssbook/pkg/loggers"
 )
 
 const SiteURL string = "https://www.falseprotagonist.me/"
@@ -37,7 +39,7 @@ type SplitPlan []FileSplit
 type FileName string
 
 type BookMeta struct {
-	Id       string
+	ID       string
 	Title    string
 	Author   string
 	Episodes episodesList
@@ -97,14 +99,15 @@ func Check(e error) {
 }
 
 // SimpleExec executes command with args
-func SimpleExec(name string, arg ...string) string {
+func SimpleExec(name string, arg ...string) (string, error) {
 	cmd := exec.Command(name, arg...)
+	loggers.Debug.Printf("Executing: `%v`", cmd)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		fmt.Println(fmt.Sprint(err) + ": " + string(output))
-		return "Error"
+		loggers.Error.Println(fmt.Sprint(err) + ": " + string(output))
+		return "", err
 	}
-	return string(output)
+	return string(output), nil
 }
 
 // FormatTime formats time into 00:00:00

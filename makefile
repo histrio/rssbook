@@ -20,4 +20,4 @@ start:
 docker-build:
 	docker build -t histrio/rssbook:latest -t histrio/rssbook:${VER} .
 	docker push histrio/rssbook:${VER}
-	docker push histrio/rssbook:latest
+	# docker push histrio/rssbook:latest

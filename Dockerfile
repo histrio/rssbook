@@ -1,8 +1,10 @@
 FROM golang:latest as builder
+
+RUN go get github.com/gosimple/slug
+RUN mkdir /build
+
 COPY . /go/src/github.com/histrio/rssbook
 WORKDIR /go/src/github.com/histrio/rssbook
-RUN mkdir /build
-RUN go get github.com/gosimple/slug
 RUN go test ./...
 RUN CGO_ENABLED=0 GOOS=linux go build -v -a -installsuffix cgo -ldflags "-s -w -X ${PROJECT}/pkg/version.Release=${RELEASE} -X ${PROJECT}/pkg/version.Commit=$(git rev-parse --short HEAD) -X ${PROJECT}/pkg/version.BuildTime=$(date -u '+%Y-%m-%d_%H:%M:%S')" -o /build/main cmd/rssbookcli/main.go
 

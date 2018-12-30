@@ -17,7 +17,8 @@ import (
 
 // GetDuration Calculate duration of audio file
 func GetDuration(filename utils.FileName) time.Duration {
-	durationRaw := utils.SimpleExec("ffprobe", "-i", string(filename), "-show_entries", "format=duration", "-v", "quiet", "-of", "csv")
+	durationRaw, err := utils.SimpleExec("ffprobe", "-i", string(filename), "-show_entries", "format=duration", "-v", "quiet", "-of", "csv")
+	utils.Check(err)
 	duration := strings.Split(durationRaw, ",")[1]
 	durationS := strings.Split(duration, ".")
 	seconds, err := strconv.ParseInt(strings.TrimSpace(durationS[0]), 10, 64)
@@ -46,7 +47,8 @@ func GetSilences(filename utils.FileName) []utils.Silence {
 	rEndDuration := regexp.MustCompile(`silence_end: (\d+(\.\d+)?) \| silence_duration: (\d+(\.\d+)?)`)
 
 	var result []utils.Silence
-	res := utils.SimpleExec("ffmpeg", "-i", string(filename), "-af", "silencedetect=noise=-30dB:d=0.7", "-f", "null", "-")
+	res, err := utils.SimpleExec("ffmpeg", "-i", string(filename), "-af", "silencedetect=noise=-30dB:d=0.7", "-f", "null", "-")
+	utils.Check(err)
 	var silence utils.Silence
 	silence = utils.Silence{}
 	for _, s := range strings.Split(res, "\n") {
@@ -163,12 +165,14 @@ func GetMergedEpisodes(in <-chan utils.SplitPlan) chan utils.FileName {
 					"-ss", utils.FormatDuration(split.From),
 					"-to", utils.FormatDuration(split.To),
 					"-write_xing", "0", name)
+				utils.Check(err)
 				listFile.WriteString(fmt.Sprintf("file '%v'\n", name))
 			}
 			listFile.Close()
 			ep, err := ioutil.TempFile(os.TempDir(), "rssbook_concat_")
 			utils.Check(err)
 			utils.SimpleExec("ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", listFile.Name(), "-f", "mp3", "-c", "copy", ep.Name())
+			utils.Check(err)
 
 			go func() {
 				os.Remove(listFile.Name())
@@ -192,6 +196,7 @@ func GetCompressedEpisodes(in <-chan utils.FileName) chan utils.FileName {
 			listFile, err := ioutil.TempFile(os.TempDir(), "rssbook_compress_")
 			utils.Check(err)
 			utils.SimpleExec("ffmpeg", "-y", "-i", string(ep), "-codec:a", "libmp3lame", "-qscale:a", "9", "-f", "mp3", listFile.Name())
+			utils.Check(err)
 			go os.Remove(string(ep))
 			c <- utils.FileName(listFile.Name())
 		}
@@ -206,6 +211,7 @@ func getAudioMeta(file utils.FileName) utils.AudioMeta {
 	defer os.Remove(metaFile.Name())
 	utils.Check(err)
 	utils.SimpleExec("ffmpeg", "-y", "-i", string(file), "-f", "ffmetadata", metaFile.Name())
+	utils.Check(err)
 	f, err := os.Open(metaFile.Name())
 	scanner := bufio.NewScanner(f)
 	result := utils.AudioMeta{}

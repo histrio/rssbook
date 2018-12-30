@@ -139,7 +139,7 @@ func GenerateXML(book utils.BookMeta) string {
 			Link:  ep.Href,
 			GUID: rssItemGUID{
 				IsPermaLink: false,
-				Value:       utils.GetID("books.falseprotagonist.me", fmt.Sprintf("%s%d", book.Id, ep.Pos), t0),
+				Value:       utils.GetID("books.falseprotagonist.me", fmt.Sprintf("%s%d", book.ID, ep.Pos), t0),
 			},
 			Enclosure: rssEnclosure{
 				URL:    ep.Href,
@@ -153,7 +153,7 @@ func GenerateXML(book utils.BookMeta) string {
 		items = append(items, item)
 	}
 
-	selfLink := strings.Join([]string{utils.S3Url, book.Id + "/", book.Id + ".xml"}, "")
+	selfLink := strings.Join([]string{utils.S3Url, book.ID + "/", book.ID + ".xml"}, "")
 	bookHash := utils.GetMD5Hash(selfLink)
 	imageSize := 1400
 	imageURL := fmt.Sprintf("https://www.gravatar.com/avatar/%s?s=%d&d=retro&r=g", bookHash, imageSize)
