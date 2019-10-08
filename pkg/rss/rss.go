@@ -60,7 +60,7 @@ type rssItem struct {
 	ItunesExplicit string   `xml:"itunes:explicit"`
 }
 
-type rssBody struct {
+type RssBody struct {
 	XMLName xml.Name   `xml:"rss"`
 	Version string     `xml:"version,attr"`
 	Content string     `xml:"xmlns:content,attr"`
@@ -157,7 +157,7 @@ func GenerateXML(book utils.BookMeta) string {
 	bookHash := utils.GetMD5Hash(selfLink)
 	imageSize := 1400
 	imageURL := fmt.Sprintf("https://www.gravatar.com/avatar/%s?s=%d&d=retro&r=g", bookHash, imageSize)
-	rss := &rssBody{
+	rss := &RssBody{
 		Version: "2.0",
 		Content: "http://purl.org/rss/1.0/modules/content/",
 		Atom:    "http://www.w3.org/2005/Atom",

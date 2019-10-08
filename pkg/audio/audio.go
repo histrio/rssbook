@@ -8,10 +8,10 @@ import (
 	"os"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
+	"github.com/histrio/rssbook/pkg/loggers"
 	"github.com/histrio/rssbook/pkg/utils"
 )
 
@@ -19,26 +19,10 @@ import (
 func GetDuration(filename utils.FileName) time.Duration {
 	durationRaw, err := utils.SimpleExec("ffprobe", "-i", string(filename), "-show_entries", "format=duration", "-v", "quiet", "-of", "csv")
 	utils.Check(err)
-	duration := strings.Split(durationRaw, ",")[1]
-	durationS := strings.Split(duration, ".")
-	seconds, err := strconv.ParseInt(strings.TrimSpace(durationS[0]), 10, 64)
+	durationString := strings.TrimSuffix(strings.Split(durationRaw, ",")[1], "\n") + "s"
+	duration, err := time.ParseDuration(durationString)
 	utils.Check(err)
-	nseconds, err := strconv.ParseInt(strings.TrimSpace(durationS[1]), 10, 64)
-	utils.Check(err)
-	return time.Second*time.Duration(seconds) + time.Nanosecond*time.Duration(nseconds)
-}
-
-func strToDuration(s string) time.Duration {
-	durationS := strings.Split(s, ".")
-	var nseconds int64
-	seconds, err := strconv.ParseInt(strings.TrimSpace(durationS[0]), 10, 64)
-	utils.Check(err)
-	if len(durationS) > 1 {
-		n, err := strconv.ParseInt(strings.TrimSpace(durationS[1]), 10, 64)
-		utils.Check(err)
-		nseconds = n
-	}
-	return time.Second*time.Duration(seconds) + time.Nanosecond*time.Duration(nseconds)
+	return duration
 }
 
 // GetSilences returns silences in file
@@ -47,7 +31,7 @@ func GetSilences(filename utils.FileName) []utils.Silence {
 	rEndDuration := regexp.MustCompile(`silence_end: (\d+(\.\d+)?) \| silence_duration: (\d+(\.\d+)?)`)
 
 	var result []utils.Silence
-	res, err := utils.SimpleExec("ffmpeg", "-i", string(filename), "-af", "silencedetect=noise=-30dB:d=0.7", "-f", "null", "-")
+	res, err := utils.SimpleExec("ffmpeg", "-i", string(filename), "-af", "silencedetect=noise=-40dB:d=0.4", "-f", "null", "-")
 	utils.Check(err)
 	var silence utils.Silence
 	silence = utils.Silence{}
@@ -56,11 +40,11 @@ func GetSilences(filename utils.FileName) []utils.Silence {
 			s2 := s[strings.Index(s, "]")+2:]
 			if strings.HasPrefix(s2, "silence_start") {
 				strStart := rStart.FindStringSubmatch(s2)[1]
-				silence.Start = strToDuration(strStart)
+				silence.Start, _ = time.ParseDuration(strStart + "s")
 			} else if strings.HasPrefix(s2, "silence_end") {
 				sub := rEndDuration.FindStringSubmatch(s2)
-				silence.End = strToDuration(sub[1])
-				silence.Duration = strToDuration(sub[3])
+				silence.End, _ = time.ParseDuration(sub[1] + "s")
+				silence.Duration, _ = time.ParseDuration(sub[3] + "s")
 				result = append(result, silence)
 				silence = utils.Silence{}
 			}
@@ -77,14 +61,26 @@ func alignSilence(silences []utils.Silence, t time.Duration) time.Duration {
 	}
 	var distances []Distance
 
+	mmin, _ := time.ParseDuration("0.1s")
+	mmax, _ := time.ParseDuration("120s")
+
 	for _, a := range silences {
-		distance := math.Abs(float64((a.Start - t).Nanoseconds()))
-		distances = append(distances, Distance{t: a.Start + (a.Duration), d: distance})
+		distance := math.Abs(float64((a.Start - t).Milliseconds()))
+		// if (a.Start - t) > time.Duration(0) {
+		// 	loggers.Debug.Printf("%+v", distance)
+		if (float64(mmax.Milliseconds()) > distance) && (distance > float64(mmin.Milliseconds())) {
+			distances = append(distances, Distance{t: a.Start + (a.Duration / 2), d: distance})
+		}
+		// }
 	}
 	sort.Slice(distances, func(i, j int) bool {
 		return distances[i].d < distances[j].d
 	})
-	return distances[0].t
+	if len(distances) > 0 {
+		return distances[0].t
+	}
+	loggers.Warning.Printf("No silence was aligned.")
+	return t
 }
 
 // GetSplittedEpisodes returns split plan
@@ -101,13 +97,16 @@ func GetSplittedEpisodes(in <-chan utils.FileName, limitMin int) chan utils.Spli
 
 			// If debt exists
 			if debt > time.Duration(0) {
-				// And if debt less then duration we will make a split
+				// And if debt less then duration we will make a split,
 				// fill the debt and start a new split
 				if debt <= duration {
+					to := alignSilence(silences, t0+debt)
 					splits = append(splits, utils.FileSplit{
 						InputFile: f,
 						From:      t0,
-						To:        alignSilence(silences, t0+debt)})
+						To:        to})
+					loggers.Debug.Printf("%+v fills debt (part file) [%+v - %+v] and episode fullfilled", f, t0, to)
+
 					plan <- splits
 					splits = []utils.FileSplit{}
 					t0 = alignSilence(silences, debt)
@@ -120,16 +119,19 @@ func GetSplittedEpisodes(in <-chan utils.FileName, limitMin int) chan utils.Spli
 						InputFile: f,
 						From:      t0,
 						To:        duration})
+					loggers.Debug.Printf("%+v fills debt (full file) [%+v - %+v]", f, t0, duration)
 					debt = debt - duration
 					continue
 				}
 			}
-			// If episode length is fits in current file
+			// If episode length fits in current file
 			for (t0 + episodeLimit) < duration {
+				to := alignSilence(silences, t0+episodeLimit)
 				splits = append(splits, utils.FileSplit{
 					InputFile: f,
 					From:      t0,
-					To:        alignSilence(silences, t0+episodeLimit)})
+					To:        to})
+				loggers.Debug.Printf("%+v bigger than need [%+v - %+v] and episode fullfilled", f, t0, to)
 				plan <- splits
 				splits = []utils.FileSplit{}
 				t0 = alignSilence(silences, t0+episodeLimit)
@@ -140,6 +142,7 @@ func GetSplittedEpisodes(in <-chan utils.FileName, limitMin int) chan utils.Spli
 				From:      t0,
 				To:        duration})
 			debt = episodeLimit - (duration - t0)
+			loggers.Debug.Printf("%+v takes the rest [%+v - %+v] and leaves the debt %+v", f, t0, duration, debt)
 		}
 		plan <- splits
 		close(plan)

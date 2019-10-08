@@ -3,12 +3,10 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
-	"sync"
 
 	"github.com/gosimple/slug"
 	"github.com/histrio/rssbook/pkg/audio"
@@ -20,6 +18,7 @@ import (
 
 const _defaultBookAuthor string = "< Book Author >"
 const _defaultBookTitle string = "< Title >"
+const episodeMin int = 8
 
 func getTitleAndAuthor(src string) (string, string) {
 	firstFieldName := <-utils.GetFiles(src)
@@ -34,14 +33,13 @@ func getTitleAndAuthor(src string) (string, string) {
 
 func cookAudio(src string) chan utils.FileName {
 	files := utils.GetFiles(src)
-	splittedFiles := audio.GetSplittedEpisodes(files, 10)
+	splittedFiles := audio.GetSplittedEpisodes(files, episodeMin)
 	mergedEpisodes := audio.GetMergedEpisodes(splittedFiles)
 	compressedEpisodes := audio.GetCompressedEpisodes(mergedEpisodes)
 	return compressedEpisodes
 }
 
-func cookRss(wg *sync.WaitGroup, book utils.BookMeta, dst string) utils.FileName {
-	defer wg.Done()
+func cookRss(book utils.BookMeta, dst string) utils.FileName {
 	xmlDest := path.Join(dst, book.ID+".xml")
 	f, err := os.Create(xmlDest)
 	utils.Check(err)
@@ -50,8 +48,7 @@ func cookRss(wg *sync.WaitGroup, book utils.BookMeta, dst string) utils.FileName
 	return utils.FileName(xmlDest)
 }
 
-func generateM3U(wg *sync.WaitGroup, book utils.BookMeta, dst string) string {
-	defer wg.Done()
+func cookM3U(book utils.BookMeta, dst string) string {
 	m3uDest := path.Join(dst, book.ID+".m3u")
 	f, err := os.Create(m3uDest)
 	utils.Check(err)
@@ -82,7 +79,7 @@ func main() {
 	flag.Parse()
 
 	if src == "" {
-		log.Fatalln("No source found.")
+		loggers.Warning.Fatalln("No source found.")
 	}
 
 	pwd, err := os.Getwd()
@@ -119,7 +116,6 @@ func main() {
 	}
 
 	pos := 0
-	wg := &sync.WaitGroup{}
 	for epFile := range cookAudio(src) {
 		loggers.Info.Println("Issued: " + epFile)
 
@@ -142,10 +138,8 @@ func main() {
 		}
 
 		book.Episodes = append(book.Episodes, ep)
-		wg.Add(2)
-		go cookRss(wg, book, dest)
-		go generateM3U(wg, book, dest)
 	}
 
-	wg.Wait()
+	cookRss(book, dest)
+	cookM3U(book, dest)
 }

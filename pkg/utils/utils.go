@@ -14,9 +14,8 @@ import (
 	"github.com/histrio/rssbook/pkg/loggers"
 )
 
-const SiteURL string = "https://www.falseprotagonist.me/"
+// S3Url is a root URL for files serving
 const S3Url string = "http://files.falseprotagonist.me/"
-const S3Bucket string = "falseprotagonist-one/"
 
 type FileSplit struct {
 	InputFile FileName
@@ -101,7 +100,7 @@ func Check(e error) {
 // SimpleExec executes command with args
 func SimpleExec(name string, arg ...string) (string, error) {
 	cmd := exec.Command(name, arg...)
-	loggers.Debug.Printf("Executing: `%v`", cmd)
+	// loggers.Debug.Printf("Executing: `%v`", cmd)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		loggers.Error.Println(fmt.Sprint(err) + ": " + string(output))
