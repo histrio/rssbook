@@ -15,7 +15,7 @@ import (
 )
 
 // S3Url is a root URL for files serving
-const S3Url string = "http://files.falseprotagonist.me/"
+const S3Url string = "http://files.false.org.ru/"
 
 type FileSplit struct {
 	InputFile FileName

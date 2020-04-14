@@ -117,15 +117,16 @@ func main() {
 
 	pos := 0
 	for epFile := range cookAudio(src) {
-		loggers.Info.Println("Issued: " + epFile)
 
 		pos = pos + 1
 
 		_, filename := filepath.Split(string(epFile))
 
 		go func() {
-			utils.CopyFile(epFile, path.Join(dest, filename+".mp3"))
+			outFile := fmt.Sprintf("episode-%03d.mp3", pos)
+			utils.CopyFile(epFile, path.Join(dest, outFile))
 			utils.Check(err)
+			loggers.Info.Println("Issued: " + outFile)
 		}()
 
 		ep := utils.BookEpisode{

@@ -1,25 +1,20 @@
 .PHONY: build docker-build docker-publish
 VOLUME_NAME = my-data
-RSSBOOK_S3_BUCKET = s3://files.falseprotagonist.me/
+RSSBOOK_S3_BUCKET = s3://files.false.org.ru/
 PROJECT = github.com/histrio/rssbook
 BUILDTIME = $(shell date -u '+%Y-%m-%d_%H:%M:%S')
 COMMIT = $(shell git rev-parse --short HEAD)
-RELEASE = 0.0.3
+VER = 0.0.3
+
+OPTS = -X ${PROJECT}/pkg/version.Release=${VER} -X ${PROJECT}/pkg/version.Commit=${COMMIT} -X ${PROJECT}/pkg/version.BuildTime=${BUILDTIME}
+OUTPUT = -o ./build/rssbook cmd/rssbookcli/main.go
 
 build:
-	go build -v -ldflags " \
-		-X ${PROJECT}/pkg/version.Release=${RELEASE} \
-		-X ${PROJECT}/pkg/version.Commit=${COMMIT} \
-		-X ${PROJECT}/pkg/version.BuildTime=${BUILDTIME}" \
-		-o ./build/rssbook cmd/rssbookcli/main.go
+	go build -v -ldflags "${OPTS}" ${OUTPUT}
 
 build-native:
 	CGO_ENABLED=0 GOOS=linux \
-		go build -v -a -installsuffix cgo -ldflags "-s -w \
-		-X ${PROJECT}/pkg/version.Release=${RELEASE} \
-		-X ${PROJECT}/pkg/version.Commit=${COMMIT} \
-		-X ${PROJECT}/pkg/version.BuildTime=${BUILDTIME}" \
-		-o ./build/rssbook cmd/rssbookcli/main.go
+		go build -v -a -installsuffix cgo -ldflags "-s -w ${OPTS}" ${OUTPUT}
 
 test:
 	go test ./... -v -cover

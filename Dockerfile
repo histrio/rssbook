@@ -5,6 +5,7 @@ RUN mkdir /build
 
 COPY . /go/src/github.com/histrio/rssbook
 WORKDIR /go/src/github.com/histrio/rssbook
+RUN go get github.com/stretchr/testify
 RUN make test
 RUN make build
 
