@@ -3,7 +3,6 @@ sudo: false
 language: go
 
 go:
-  - 1.9.x
   - 1.x
 
 git:
@@ -16,6 +15,7 @@ notifications:
 
 before_script:
   - go get github.com/gosimple/slug
+  - go get github.com/stretchr/testify
 
 script:
   - go test -v -race ./...
