@@ -105,7 +105,7 @@ func GetSplittedEpisodes(in <-chan utils.FileName, limitMin int) chan utils.Spli
 						InputFile: f,
 						From:      t0,
 						To:        to})
-					loggers.Debug.Printf("%+v fills debt (part file) [%+v - %+v] and episode fullfilled", f, t0, to)
+					loggers.Debug.Printf("%+v fills debt (part file) [%+v - %+v] and episode fulfilled", f, t0, to)
 
 					plan <- splits
 					splits = []utils.FileSplit{}
@@ -131,7 +131,7 @@ func GetSplittedEpisodes(in <-chan utils.FileName, limitMin int) chan utils.Spli
 					InputFile: f,
 					From:      t0,
 					To:        to})
-				loggers.Debug.Printf("%+v bigger than need [%+v - %+v] and episode fullfilled", f, t0, to)
+				loggers.Debug.Printf("%+v bigger than need [%+v - %+v] and episode fulfilled", f, t0, to)
 				plan <- splits
 				splits = []utils.FileSplit{}
 				t0 = alignSilence(silences, t0+episodeLimit)
@@ -216,6 +216,7 @@ func getAudioMeta(file utils.FileName) utils.AudioMeta {
 	utils.SimpleExec("ffmpeg", "-y", "-i", string(file), "-f", "ffmetadata", metaFile.Name())
 	utils.Check(err)
 	f, err := os.Open(metaFile.Name())
+	utils.Check(err)
 	scanner := bufio.NewScanner(f)
 	result := utils.AudioMeta{}
 	for scanner.Scan() {
