@@ -16,6 +16,7 @@ notifications:
 
 before_script:
   - go get github.com/gosimple/slug
+  - go get github.com/stretchr/testify
 
 script:
   - go test -v -race ./...
