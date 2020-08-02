@@ -19,6 +19,9 @@ build-native:
 test:
 	go test ./... -v -cover
 
+upload:
+	s3cmd put -r --storage-class=ONEZONE_IA --acl-public ${SOURCE} s3://files.false.org.ru/
+
 docker-build:
 	docker build -t histrio/rssbook:latest -t histrio/rssbook:${VER} .
 
@@ -26,13 +29,10 @@ docker-publish:
 	docker push histrio/rssbook:${VER}
 
 start:
+	make docker-build
 	docker rm ${VOLUME_NAME} || true
 	docker create -v "${BOOK_SOURCE}":/data --name ${VOLUME_NAME} busybox /bin/true
 	docker run -it --rm \
-		-e BUILDTIME=${BUILDTIME} \
-		-e COMMIT=${COMMIT} \
-		-e PROJECT=${PROJECT} \
-		-e RELEASE=${RELEASE} \
 		--volumes-from ${VOLUME_NAME} histrio/rssbook:${VER} \
 		--name "${BOOK_ID}" \
 		--author "${BOOK_AUTHOR}" \

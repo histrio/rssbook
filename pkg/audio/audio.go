@@ -66,12 +66,9 @@ func alignSilence(silences []utils.Silence, t time.Duration) time.Duration {
 
 	for _, a := range silences {
 		distance := math.Abs(float64((a.Start - t).Milliseconds()))
-		// if (a.Start - t) > time.Duration(0) {
-		// 	loggers.Debug.Printf("%+v", distance)
 		if (float64(mmax.Milliseconds()) > distance) && (distance > float64(mmin.Milliseconds())) {
 			distances = append(distances, Distance{t: a.Start + (a.Duration / 2), d: distance})
 		}
-		// }
 	}
 	sort.Slice(distances, func(i, j int) bool {
 		return distances[i].d < distances[j].d
@@ -198,7 +195,7 @@ func GetCompressedEpisodes(in <-chan utils.FileName) chan utils.FileName {
 		for ep := range in {
 			listFile, err := ioutil.TempFile(os.TempDir(), "rssbook_compress_")
 			utils.Check(err)
-			utils.SimpleExec("ffmpeg", "-y", "-i", string(ep), "-codec:a", "libmp3lame", "-qscale:a", "9", "-f", "mp3", listFile.Name())
+			utils.SimpleExec("ffmpeg", "-y", "-i", string(ep), "-codec:a", "libmp3lame", "-qscale:a", "8", "-f", "mp3", listFile.Name())
 			utils.Check(err)
 			go os.Remove(string(ep))
 			c <- utils.FileName(listFile.Name())

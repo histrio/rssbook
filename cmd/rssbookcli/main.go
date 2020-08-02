@@ -72,14 +72,16 @@ func main() {
 	var bookAuthor string
 
 	flag.StringVar(&dst, "dst", "", "Generated files destination")
-	flag.StringVar(&src, "src", "", "Source of audiofiles")
+	//flag.StringVar(&src, "src", "", "Source of audiofiles")
 	flag.StringVar(&bookID, "name", "", "Set a shortname for the podcast. By default it would be a slugifyed source folder name.")
 	flag.StringVar(&bookTitle, "title", "", "Set title for the podcast. By default it would take a title from the first file of the book.")
 	flag.StringVar(&bookAuthor, "author", "", "Set an author for the podcast. By default it would take an artist from the first file of the book.")
 	flag.Parse()
 
-	if src == "" {
-		loggers.Warning.Fatalln("No source found.")
+	if flag.NArg() == 1 {
+		src = flag.Arg(0)
+	} else {
+		loggers.Error.Fatalln("No source found.")
 	}
 
 	pwd, err := os.Getwd()
