@@ -7,16 +7,13 @@ COMMIT = $(shell git rev-parse --short HEAD)
 VER = 0.0.3
 
 OPTS = -X ${PROJECT}/pkg/version.Release=${VER} -X ${PROJECT}/pkg/version.Commit=${COMMIT} -X ${PROJECT}/pkg/version.BuildTime=${BUILDTIME}
-SPLIT_OUTPUT = -o ./build/rssbook-split cmd/rssbookcli/split.go
-COOK_OUTPUT = -o ./build/rssbook-cook cmd/rssbookcli/cook.go
+OUTPUT = -o ./build/rssbook cmd/rssbookcli/main.go
 
 build:
-	go build -v -ldflags "${OPTS}" ${SPLIT_OUTPUT}
-	go build -v -ldflags "${OPTS}" ${COOK_OUTPUT}
+	go build -v -ldflags "${OPTS}" ${OUTPUT}
 
 build-native:
-	CGO_ENABLED=0 GOOS=linux go build -v -a -installsuffix cgo -ldflags "-s -w ${OPTS}" ${SPLIT_OUTPUT}
-	CGO_ENABLED=0 GOOS=linux go build -v -a -installsuffix cgo -ldflags "-s -w ${OPTS}" ${COOK_OUTPUT}
+	CGO_ENABLED=0 GOOS=linux go build -v -a -installsuffix cgo -ldflags "-s -w ${OPTS}" ${OUTPUT}
 
 test:
 	go test ./... -v -cover

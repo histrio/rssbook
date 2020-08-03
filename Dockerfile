@@ -21,9 +21,8 @@ RUN rm -rf /tmp/ffmpeg-git-64bit-static.tar.xz
 RUN upx ffmpeg -o /ffmpeg.compressed
 RUN upx ffprobe -o /ffprobe.compressed
 
-COPY --from=builder /go/src/github.com/histrio/rssbook/build/rssbook-split /
-COPY --from=builder /go/src/github.com/histrio/rssbook/build/rssbook-cook /
-RUN upx --best /rssbook-*
+COPY --from=builder /go/src/github.com/histrio/rssbook/build/rssbook /
+RUN upx --best /rssbook
 
 # ====================================================
 
@@ -31,6 +30,6 @@ FROM scratch
 ADD empty /tmp/
 COPY --from=downloader /ffmpeg.compressed /ffmpeg
 COPY --from=downloader /ffprobe.compressed /ffprobe
-COPY --from=downloader /rssbook-* /
+COPY --from=downloader /rssbook /
 ENV PATH /
 ENTRYPOINT ["/rssbook", "--src", "/data", "--dst", "/data"]
