@@ -123,14 +123,6 @@ func main() {
 		pos = pos + 1
 		outFile := fmt.Sprintf("episode-%03d.mp3", pos)
 
-		go func() {
-			utils.CopyFile(epFile, path.Join(dest, outFile))
-			utils.Check(err)
-			loggers.Info.Println("Issued: " + outFile)
-			os.Remove(string(epFile))
-			utils.Check(err)
-		}()
-
 		ep := utils.BookEpisode{
 			Pos:      pos,
 			Name:     fmt.Sprintf("Episode %03d", pos),
@@ -139,6 +131,14 @@ func main() {
 			Href:     utils.S3Url + book.ID + "/" + outFile,
 			Duration: audio.GetDuration(epFile),
 		}
+
+		go func() {
+			utils.CopyFile(epFile, path.Join(dest, outFile))
+			utils.Check(err)
+			loggers.Info.Println("Issued: " + outFile)
+			err := os.Remove(string(epFile))
+			utils.Check(err)
+		}()
 
 		book.Episodes = append(book.Episodes, ep)
 	}
