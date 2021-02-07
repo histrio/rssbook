@@ -13,8 +13,7 @@ build:
 	go build -v -ldflags "${OPTS}" ${OUTPUT}
 
 build-native:
-	CGO_ENABLED=0 GOOS=linux \
-		go build -v -a -installsuffix cgo -ldflags "-s -w ${OPTS}" ${OUTPUT}
+	CGO_ENABLED=0 GOOS=linux go build -v -a -installsuffix cgo -ldflags "-s -w ${OPTS}" ${OUTPUT}
 
 test:
 	go test ./... -v -cover
