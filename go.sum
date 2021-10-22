@@ -1,0 +1,6 @@
+github.com/gosimple/slug v1.11.0 h1:QkFeOkXIEDvvtIt++P7cUuO4G9PZVQEgLuYbYZzawMA=
+github.com/gosimple/slug v1.11.0/go.mod h1:MICb3w495l9KNdZm+Xn5b6T2Hn831f9DMxiJ1r+bAjw=
+github.com/gosimple/unidecode v1.0.0 h1:kPdvM+qy0tnk4/BrnkrbdJ82xe88xn7c9hcaipDz4dQ=
+github.com/gosimple/unidecode v1.0.0/go.mod h1:CP0Cr1Y1kogOtx0bJblKzsVWrqYaqfNOnHzpgWw4Awc=
+github.com/histrio/rssbook v0.0.3 h1:fyK8/6m9l2q6L5UgA+t5kbpvT68e7w41h9RAzvmXVx0=
+github.com/histrio/rssbook v0.0.3/go.mod h1:V9hSLi25Yte80F+Bak2FqVjZXf4OBEIxtpuRky7iyRo=
